@@ -1,0 +1,40 @@
+{
+  "name": "MyOutDesk Auto BCC",
+  "description": "Auto BCC when sending emails with filters.",
+  "version": "1.0",
+  "manifest_version": 3,
+  "content_scripts": [
+    {
+      "js": [
+        "src/content.js"
+      ],
+      "matches": [
+        "https://mail.google.com/*",
+        "https://inbox.google.com/*"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "host_permissions": [
+    "https://mail.google.com/",
+    "https://inbox.google.com/"
+  ],
+  "permissions": [
+    "scripting",
+    "storage"
+  ],
+  "action": {
+    "default_popup": "index.html",
+    "default_icon": {
+      "128": "src/icons/orange-square-mail.png"
+    },
+    "default_title": "MyOutDesk Auto BCC"
+  },
+  "icons": {
+    "128": "src/icons/orange-square-mail.png"
+  }
+}

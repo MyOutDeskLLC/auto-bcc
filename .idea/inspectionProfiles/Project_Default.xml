@@ -1,0 +1,10 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PostCssCustomMedia" enabled="true" level="ERROR" enabled_by_default="true" />
+    <inspection_tool class="PostCssCustomProperties" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PostCssCustomSelector" enabled="true" level="ERROR" enabled_by_default="true" />
+    <inspection_tool class="PostCssMediaRange" enabled="true" level="ERROR" enabled_by_default="true" />
+    <inspection_tool class="PostCssNesting" enabled="false" level="WARNING" enabled_by_default="false" />
+  </profile>
+</component>
