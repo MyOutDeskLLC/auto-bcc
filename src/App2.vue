@@ -23,9 +23,14 @@
     }
 
     onMounted(() => {
+
         configButton.value = gmail.tools.add_toolbar_button("<img src=\"" + chrome.runtime.getURL("src/icons/orange-square-mail.png") + "\">", function() {
             show.value = true;
         }, "hover:bg-stone-200/50 w-10 h-10 p-3 -mt-2.5 rounded-full");
+
+        gmail.observe.on('load', ()=>{
+
+        })
 
         gmail.observe.on_dom("compose", () => {
             alert('were composing bois!')

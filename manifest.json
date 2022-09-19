@@ -28,7 +28,6 @@
     "storage"
   ],
   "action": {
-    "default_popup": "index.html",
     "default_icon": {
       "128": "src/icons/orange-square-mail.png"
     },

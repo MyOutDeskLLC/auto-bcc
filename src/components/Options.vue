@@ -13,36 +13,51 @@
                         </button>
                     </div>
                     <div>
-                        <h1 class="mb-6 text-2xl font-semibold">New Auto BCC Rule</h1>
+                        <div v-if="currentRules && Object.keys(currentRules).length > 0" class="h-28 overflow-y-auto mb-4 bg-gray-100 rounded-md p-4 space-y-2">
+                            <Rule v-for="(rule, index) in Object.keys(currentRules)" :rule="currentRules[rule]" :index="index + 1"></Rule>
+                        </div>
+
+
+                        <h1 class="mb-6 text-lg font-medium leading-6 text-gray-900">New Auto BCC Rule</h1>
+
+
                         <div class="space-y-2">
                             <div>
-                                <div>When sent from an email that</div>
-                                <input class="mt-2 w-full rounded" type="text">
-
+                                <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">When sent from the following email(s):</div>
+                                <input class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" v-model="sentFromEmail" @keyup.enter="addFromEmail" @keydown.tab="addFromEmail">
+                                <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Sender Emails</div>
+                                <div class="mt-2 flex max-h-32 flex-wrap overflow-y-auto space-x-2">
+                                    <button type="button" v-for="email in sentFromEmails" class="mb-1 rounded-md bg-purple-600 px-2 py-1 text-xs text-white" @click="removeFromEmail(email)">{{ truncateEmail(email) }}</button>
+                                </div>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Exclude Same Domain As Sender? </span>
+                                <div class="mt-2 space-y-1">
+                                    <div class="flex items-center space-x-2">
+                                        <input name="exclude-same-domain" type="radio" class="h-4 w-4 text-brand-500" :value="true" v-model="excludeSameDomain">
+                                        <label for="exclude-same-domain" class="text-sm">Yes</label>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <input type="radio" class="h-4 w-4 text-brand-500" name="do-not-exclude-same-domain" :value="false" v-model="excludeSameDomain">
+                                        <label for="do-not-exclude-same-domain" class="text-sm">No</label>
+                                    </div>
+                                </div>
                             </div>
 
                             <div>
-                                <div>Send blind copy to:</div>
-                                <select class="w-full rounded">
-                                    <option>Only</option>
-                                    <option>All my contacts except</option>
-                                    <option>All my contacts</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <textarea rows="4" class="block w-full rounded"></textarea>
-                                <div class="text-sm text-gray-500">* Separate each address by new line</div>
-                            </div>
-
-                            <div>
+                                <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Send blind copy to:</div>
+                                <input v-model="bccEmail" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" @keyup.enter="addBCC" @keydown.tab="addBCC">
+                                <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">BCC Emails</div>
+                                <div class="mt-2 flex max-h-32 flex-wrap overflow-y-auto space-x-2">
+                                    <button type="button" v-for="email in bccEmails" class="rounded-md bg-purple-600 px-2 py-1 text-xs text-white" @click="removeBccEmail(email)">{{ truncateEmail(email) }}</button>
+                                </div>
                             </div>
 
                         </div>
                     </div>
                     <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                        <button type="button" class="inline-flex w-full justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm">Deactivate</button>
-                        <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm">Cancel</button>
+                        <button type="button" class="inline-flex w-full justify-center rounded-md border border-transparent px-4 py-2 text-base font-medium text-white shadow-sm bg-brand-600 hover:bg-brand-700 focus:ring-brand-500 focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm" @click="addRule">Add Rule</button>
+                        <button type="button" class="mt-3 inline-flex w-full justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-sm hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:mt-0 sm:w-auto sm:text-sm" @click="close">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -52,19 +67,115 @@
 </template>
 <script setup>
 
+    import Rule from "./Rule.vue";
+
     const emits = defineEmits(["close"]);
-    const props = defineProps({show: Boolean});
+    const props = defineProps({show: Boolean, currentUser: String});
 
 
     import {onMounted, onUnmounted, ref} from "vue";
 
+    const sentFromEmail = ref();
+    const sentFromEmails = ref([]);
+    const excludeSameDomain = ref(true);
+    const bccEmail = ref();
+    const bccEmails = ref([]);
+    const currentRules = ref({});
 
-    const senderCriteria = ref(null);
+
+    const emailRegEx = new RegExp(/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/);
 
     function close() {
         emits("close");
     }
 
+    function addBCC() {
+        if (bccEmail.value && !bccEmails.value.includes(bccEmail.value) && emailRegEx.test(bccEmail.value)) {
+            bccEmails.value.push(bccEmail.value);
+            bccEmail.value = "";
+        }
+    }
+
+    function removeBccEmail(email) {
+        bccEmails.value = bccEmails.value.filter((currentEmail) => {
+            if (currentEmail !== email) {
+                return currentEmail;
+            }
+        });
+    }
+
+    function addFromEmail() {
+        if (sentFromEmail.value && !sentFromEmails.value.includes(sentFromEmail.value) && emailRegEx.test(sentFromEmail.value)) {
+            sentFromEmails.value.push(sentFromEmail.value);
+            sentFromEmail.value = "";
+        }
+    }
+
+    function removeFromEmail(email) {
+        sentFromEmails.value = sentFromEmails.value.filter((currentEmail) => {
+            if (currentEmail !== email) {
+                return currentEmail;
+            }
+        });
+    }
+
+    function truncateEmail(email) {
+        let truncatedEmail = email.substring(0, 25);
+        if (truncatedEmail.length > 25) {
+            return truncatedEmail + "...";
+        }
+        return truncatedEmail;
+    }
+
+    function resetForm() {
+        sentFromEmails.value = [];
+        bccEmails.value = [];
+        bccEmail.value = "";
+        sentFromEmail.value = "";
+        excludeSameDomain.value = true;
+    }
+
+    function getExcludedDomains() {
+
+        if (excludeSameDomain.value === false) {
+            return [];
+        }
+
+        let domains = sentFromEmails.value.map((email) => {
+            return email.split("@")[1];
+        });
+        domains = domains.filter((email, index) => {
+            return domains.indexOf(email) === index;
+        });
+        return domains;
+
+    }
+
+    function addRule() {
+        currentRules.value[new Date().getTime()] = {
+            senders: sentFromEmails.value,
+            bccEmails: bccEmails.value,
+            excludedDomains: getExcludedDomains(),
+        };
+
+        chrome.storage.local.set({bccRules: currentRules.value}, (result) => {
+            console.log(result);
+            emits("close");
+        });
+
+    }
+
+    onMounted(() => {
+        chrome.storage.local.get("bccRules", (data) => {
+            if (data.bccRules) {
+                currentRules.value = data.bccRules;
+            }
+        });
+    });
+
+    onUnmounted(() => {
+        resetForm();
+    });
 
 
 </script>
