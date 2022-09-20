@@ -6,13 +6,14 @@
   "content_scripts": [
     {
       "js": [
-        "src/content.js"
+        "src/content.js",
+        "src/gmail.js"
       ],
       "matches": [
         "https://mail.google.com/*",
         "https://inbox.google.com/*"
       ],
-      "run_at": "document_end"
+      "run_at": "document_start"
     }
   ],
   "background": {
