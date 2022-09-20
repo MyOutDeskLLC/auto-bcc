@@ -73,26 +73,5 @@ mountVue();
 //     alert("url:", url, "body", body, "email_data", data, "xhr", xhr);
 // });
 
-// import * as InboxSDK from '@inboxsdk/core';
 
-// InboxSDK.load(2, 'sdk_MyOutDesk_cca03fd0f7', {}).then(function(sdk){
-//     // the SDK has been loaded, now do something with it!
-//     sdk.Compose.registerComposeViewHandler(function(composeView){
-//         composeView.on('presending', (event)=>{
-//             let toRecipients = composeView.getToRecipients();
-//             composeView.setBccRecipients(['lancet@myoutdesk.com'])
-//             alert(toRecipients);
-//             event.cancel();
-//         })
-//         // // a compose view has come into existence, do something with it!
-//         // composeView.addButton({
-//         //     title: "My Nifty Button!",
-//         //     iconUrl: 'https://example.com/foo.png',
-//         //     onClick: function(event) {
-//         //         event.composeView.insertTextIntoBodyAtCursor('Hello World!');
-//         //     },
-//         // });
-//     });
-//
-// });
 

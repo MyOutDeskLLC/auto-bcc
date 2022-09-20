@@ -13,8 +13,8 @@
                         </button>
                     </div>
                     <div>
-                        <div v-if="currentRules && Object.keys(currentRules).length > 0" class="h-28 overflow-y-auto mb-4 bg-gray-100 rounded-md p-4 space-y-2">
-                            <Rule v-for="(rule, index) in Object.keys(currentRules)" :rule="currentRules[rule]" :index="index + 1"></Rule>
+                        <div v-if="rules && Object.keys(rules).length > 0" class="h-32 overflow-y-auto mb-4 bg-gray-100 rounded-md p-4 space-y-2">
+                            <Rule v-for="(rule, index) in Object.keys(rules)" :rule="rules[rule]" :index="index + 1"></Rule>
                         </div>
 
 
@@ -66,21 +66,22 @@
 
 </template>
 <script setup>
+    import {onMounted, onUnmounted, ref, toRefs} from "vue";
+
 
     import Rule from "./Rule.vue";
 
-    const emits = defineEmits(["close"]);
-    const props = defineProps({show: Boolean, currentUser: String});
+    const emits = defineEmits(["close", "rule-add"]);
+    const props = defineProps({show: Boolean, currentUser: String, rules: Object});
+    const { rules } = toRefs(props);
 
 
-    import {onMounted, onUnmounted, ref} from "vue";
 
     const sentFromEmail = ref();
     const sentFromEmails = ref([]);
     const excludeSameDomain = ref(true);
     const bccEmail = ref();
     const bccEmails = ref([]);
-    const currentRules = ref({});
 
 
     const emailRegEx = new RegExp(/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/);
@@ -152,26 +153,20 @@
     }
 
     function addRule() {
-        currentRules.value[new Date().getTime()] = {
+        let tempRules = rules.value;
+
+        tempRules[new Date().getTime()] = {
             senders: sentFromEmails.value,
             bccEmails: bccEmails.value,
             excludedDomains: getExcludedDomains(),
         };
 
-        chrome.storage.local.set({bccRules: currentRules.value}, (result) => {
-            console.log(result);
-            emits("close");
+        chrome.storage.local.set({bccRules: tempRules}, (result) => {
+            emits("rule-add", tempRules);
         });
 
     }
 
-    onMounted(() => {
-        chrome.storage.local.get("bccRules", (data) => {
-            if (data.bccRules) {
-                currentRules.value = data.bccRules;
-            }
-        });
-    });
 
     onUnmounted(() => {
         resetForm();
