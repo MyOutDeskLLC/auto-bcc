@@ -1,14 +1,14 @@
-The Mostly MIT License (MIT)
+The Mostly MIT License (MMIT)
 
 Copyright (c) myoutdeskllc <jl@myoutdesk.com>
 
-<u>You may not sell or otherwise use this code in any commercial product without consent from MyOutDesk.</u>
+<u>You may not sell or use this code in any commercial product without consent from MyOutDesk.</u>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, and distribute and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+in the Software without restriction, including the rights to use, copy, modify,
+merge, publish, and distribute and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.

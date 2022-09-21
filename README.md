@@ -46,4 +46,4 @@ Submit a PR.
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+The Mostly MIT License (MMIT). Please see [License File](LICENSE.md) for more information.
