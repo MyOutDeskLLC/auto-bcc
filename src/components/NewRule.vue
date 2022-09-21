@@ -9,7 +9,7 @@
                     <div class="text-xs text-gray-500">* If left blank this rule will be applied to all emails</div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Sender Emails</div>
                     <div class="mt-2 flex max-h-32 flex-wrap overflow-y-auto space-x-2">
-                        <button type="button" v-for="email in sentFromEmails" class="mb-1 rounded-md bg-purple-600 px-2 py-1 text-xs text-white" @click="removeFromEmail(email)">{{ truncateEmail(email) }}</button>
+                        <button type="button" v-for="(email, emailIndex) in sentFromEmails" :key="emailIndex" class="mb-1 rounded-md bg-purple-600 px-2 py-1 text-xs text-white" @click="removeFromEmail(email)">{{ truncateEmail(email) }}</button>
                     </div>
                 </div>
                 <div>
@@ -31,7 +31,7 @@
                     <input v-model="bccEmail" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" @keyup.enter="addBCC" @keydown.tab="addBCC">
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">BCC Emails</div>
                     <div class="mt-2 flex max-h-32 flex-wrap overflow-y-auto space-x-2">
-                        <button type="button" v-for="email in bccEmails" class="rounded-md bg-purple-600 px-2 py-1 text-xs text-white" @click="removeBccEmail(email)">{{ truncateEmail(email) }}</button>
+                        <button type="button" v-for="(email, emailIndex) in bccEmails" :key="emailIndex" class="rounded-md bg-purple-600 px-2 py-1 text-xs text-white" @click="removeBccEmail(email)">{{ truncateEmail(email) }}</button>
                     </div>
                 </div>
 
@@ -45,7 +45,7 @@
 <script setup>
     import Swal from 'sweetalert2'
 
-    import {onMounted, onUnmounted, ref, toRefs} from "vue";
+    import {onUnmounted, ref} from "vue";
 
     const emits = defineEmits(["rule-added"]);
 
@@ -105,20 +105,44 @@
         excludeSameDomain.value = true;
     }
 
-    function getExcludedDomains() {
-
-        if (excludeSameDomain.value === false) {
-            return [];
-        }
-
-        let domains = sentFromEmails.value.map((email) => {
+    function getDomains(emails){
+        let domains = emails.map((email) => {
             return email.split("@")[1];
         });
         domains = domains.filter((email, index) => {
             return domains.indexOf(email) === index;
         });
         return domains;
+    }
 
+    function getExcludedDomains() {
+        if (excludeSameDomain.value === false) {
+            return [];
+        }
+
+        return getDomains(sentFromEmails.value)
+    }
+
+    function mergeArraysWithNoDuplicates(array1, array2){
+        console.log({array1, array2})
+        let merged = array1.concat(array2);
+        return merged.filter((item, index) => {
+            return merged.indexOf(item) === index;
+        })
+    }
+
+    function getDomainsThatAreExclusions(){
+        let excludedDomains = getExcludedDomains();
+        let BCCsIncludedInExcludedDomains = []
+        let bccDomains = getDomains(bccEmails.value);
+        bccDomains.forEach(domain => {
+            excludedDomains.forEach(excludedDomain => {
+                if(domain === excludedDomain){
+                    BCCsIncludedInExcludedDomains.push(domain)
+                }
+            })
+        })
+        return BCCsIncludedInExcludedDomains;
     }
 
     function addRule() {
@@ -134,21 +158,42 @@
             return;
         }
 
+        let BCCsIncludedInExcludedDomains = getDomainsThatAreExclusions();
+        if(BCCsIncludedInExcludedDomains.length > 0){
+            Swal.fire({
+                icon: 'error',
+                title: 'Oops...',
+                text: 'The following emails have the same domain as the exclusion: '+ BCCsIncludedInExcludedDomains.join(',') + ' Please remove them before continuing or set exclude same domain as sender to "No"',
+                confirmButtonColor: "#fe9e11",
+            })
+            return;
+        }
+
+
 
         chrome.storage.local.get("bccRules", (data) => {
-            let rules = {};
-            if (data.bccRules) {
-                rules = data.bccRules;
-            }
+            let rules = data.bccRules ?? {}
 
-            rules[new Date().getTime()] = {
-                senders: sentFromEmails.value,
-                bccEmails: bccEmails.value,
-                excludedDomains: getExcludedDomains(),
-            };
+            //These are new rules being added
+            sentFromEmails.value.forEach(email => {
+                //rule doesnt exists create
+                if(!rules[email]){
+                    rules[email] = {
+                        bccEmails: bccEmails.value,
+                        excludedDomains: getExcludedDomains()
+                    }
+                    return;
+                }
+
+                rules[email] = {
+                    bccEmails: mergeArraysWithNoDuplicates(bccEmails.value, rules[email].bccEmails),
+                    excludedDomains: mergeArraysWithNoDuplicates(getExcludedDomains(), rules[email].excludedDomains)
+                }
+            })
 
             chrome.storage.local.set({bccRules: rules}, (result) => {
                 emits("rule-added");
+                resetForm()
             });
         });
 
