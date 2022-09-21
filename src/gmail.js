@@ -2,6 +2,7 @@ const SELECTOR_PRIMARY_COMPOSER_FORM = 'form.bAs';
 const SELECTOR_FOR_TO_CC_AND_BCC_FIELDS = '.wO.nr';
 const SELECTOR_FOR_BCC_SPAN = '.aB.gQ.pB';
 const SELECTOR_FOR_CC_SPAN = '.aB.gQ.pE';
+const EMAIL_REGEX =  /([a-z0-9]+@[a-z0-9.]+)/;
 
 class GmailThing {
 
@@ -10,6 +11,20 @@ class GmailThing {
         this.bccEmails = '';
         this.knownForms = [];
         this.observer = null;
+    }
+
+    /**
+     * This function will discover the logged-in user from the window title
+     */
+    discoverLoggedInUser = () => {
+        let matches = EMAIL_REGEX.exec(document.title);
+        if(matches !== null) {
+            // You may be curious why this is done. We need the LAST email to show up
+            // if someone emails you and the topic has another email in it, then it would fetch that in error
+            return matches[matches.length - 1];
+        }
+        // If we cannot find it, then im not sure?
+        return null;
     }
 
     setBccEmails = (emailAsString) => {
