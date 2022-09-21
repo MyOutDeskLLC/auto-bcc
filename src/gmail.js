@@ -228,16 +228,16 @@ class GmailAutoBccHandler {
     /**
      * Simple: dumps the proper CC and BCC recipients into the field as required by the rules
      *
-     * @param email
+     * @param recipient
      * @param formElement
      */
-    updateCcAndBccRecipients = (email, formElement) => {
-        this.debug("adding recipients based on email rules for: ", email);
+    updateCcAndBccRecipients = (recipient, formElement) => {
+        this.debug("adding recipients based on email rules for: ", recipient);
 
         formElement.querySelector(SELECTOR_FOR_CC_SPAN)?.click();
         formElement.querySelector(SELECTOR_FOR_BCC_SPAN)?.click();
 
-        if(Object.keys(this.rules).length < 1){
+        if(Object.keys(this.rules).length < 1) {
             return;
         }
 
@@ -248,18 +248,17 @@ class GmailAutoBccHandler {
          */
 
         let bccEmails = "";
-        Object.values(this.rules).forEach(rule => {
-            let bccEmailsArray = []
-            Object.values(rule.bccEmails).forEach(email => {
-                bccEmailsArray.push(email)
-            })
-            bccEmails += bccEmailsArray.join(',')
-        })
+        let currentSender = this.discoverLoggedInUser();
+        let targetDomain = recipient.split('@')[1];
 
-        this.setBccEmails(bccEmails)
+        // No rules available for this email sender
+        if(!this.rules[currentSender] || this.rules[currentSender].excludedDomains.includes(targetDomain)) {
+            return;
+        }
+        this.autofillField(formElement, this.rules[currentSender].bccEmails.join(','), 'bcc');
+        // this.setCcEmails(this.rules[currentSender].ccEmails);
 
-
-        this.autofillField(formElement, this.bccEmails, "bcc");
+        // this.autofillField(formElement, this.bccEmails, "bcc");
         //Todo We don't support CC as of now so lets just comment it out for now
         // this.autofillField(formElement, this.ccEmails, "cc");
     };
