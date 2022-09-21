@@ -7,6 +7,7 @@ const EMAIL_REGEX =  /([a-z0-9]+@[a-z0-9.]+)/;
 class GmailAutoBccHandler {
 
     constructor() {
+        this.debugMode = true;
         this.ccEmails = "";
         this.bccEmails = "";
         this.knownForms = [];
@@ -40,6 +41,20 @@ class GmailAutoBccHandler {
         return null;
     }
 
+    debug = (...output) => {
+        if(!this.debugMode) {
+            return;
+        }
+
+        output.forEach(item => {
+            if(typeof item === 'string') {
+                console.log(`%c${item}`, 'background: #222; color: #7dd3fc;');
+            } else {
+                console.log(`%cObject: %o`, 'background: #222; color: #7dd3fc', item);
+            }
+        })
+    }
+
     getRulesFromStorage = () => {
         chrome.storage.local.get("bccRules", (data) => {
             if (!data.bccRules) {
@@ -68,7 +83,9 @@ class GmailAutoBccHandler {
             this.knownForms = this.knownForms.filter(formId => {
                 if (!document.getElementById(formId)) {
                     if (this.observerMap[formId]) {
-                        console.log("disconnecting missing form");
+                        if(this.debug) {
+                            this.debug("disconnecting missing form");
+                        }
                         this.observerMap[formId].disconnect();
                     }
                     return false;
@@ -121,7 +138,7 @@ class GmailAutoBccHandler {
                 return;
             }
             this.knownForms.push(formElement.id);
-            console.log("connecting to form id" + formElement.id);
+            this.debug("connecting to form id", formElement.id);
             setTimeout(() => {
                 this.checkExistingRecipients(formElement);
                 this.observeRecipients(formElement);
@@ -138,11 +155,13 @@ class GmailAutoBccHandler {
         let foundElement = null;
         formElement.querySelectorAll("div.afx").forEach(divElement => {
             if (divElement.ariaLabel && divElement.ariaLabel.toLowerCase().startsWith(`search field`)) {
+                this.debug('located search field');
                 foundElement = divElement.querySelector("input");
             }
         });
 
         if (foundElement) {
+            this.debug('scanning for existing recipients under search field', foundElement);
             this.scanForCardsUnderNode(foundElement).forEach(item => {
                 this.updateCcAndBccRecipients(item.dataset.hovercardId, formElement);
             });
@@ -163,6 +182,7 @@ class GmailAutoBccHandler {
         let discoveredCards = [];
         existingCards.forEach(card => {
             if (card.dataset && card.dataset.hovercardId) {
+                this.debug('found eligible card with dataset', card.dataset);
                 discoveredCards.push(card);
             }
         });
@@ -187,6 +207,7 @@ class GmailAutoBccHandler {
                 for (const addedNode of mutation.addedNodes) {
                     if (addedNode.role === "option") {
                         if (addedNode.dataset && addedNode.dataset.hovercardId) {
+                            this.debug('to recipient change found, updating cc and bcc recipients', addedNode.dataset);
                             this.updateCcAndBccRecipients(addedNode.dataset.hovercardId, formElement);
                         }
                     }
@@ -206,7 +227,7 @@ class GmailAutoBccHandler {
      * @param formElement
      */
     updateCcAndBccRecipients = (email, formElement) => {
-        console.log("adding recipients based on email rules for: ", email);
+        this.debug("adding recipients based on email rules for: ", email);
 
         formElement.querySelector(SELECTOR_FOR_CC_SPAN)?.click();
         formElement.querySelector(SELECTOR_FOR_BCC_SPAN)?.click();
@@ -250,8 +271,9 @@ class GmailAutoBccHandler {
     autofillField = (formElement, emailList, context) => {
         formElement.querySelectorAll("span").forEach(spanElement => {
             if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith(`${context} -`)) {
-
+                this.debug('found proper nearby span to autofill against', spanElement);
                 let properEmailInputField = spanElement.parentElement.parentElement.querySelector("input");
+                this.debug('found proper input field to use', properEmailInputField);
                 let existingEmails = properEmailInputField.value;
 
                 this.scanForCardsUnderNode(spanElement).forEach(card => {
@@ -262,6 +284,8 @@ class GmailAutoBccHandler {
                 if (!existingEmails.includes(emailList)) {
                     properEmailInputField.value = emailList + existingEmails + ",";
                 }
+
+                this.debug('updated recipients to', emailList, existingEmails);
             }
         });
     };

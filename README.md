@@ -17,7 +17,7 @@ npm run dev
 ```
 
 ### How It Works
-Gmail is a giant mess of classes, so we took another approach to this which hopefully makes this long lasting to a degree.
+Gmail is a mess UI wise, so this is the approach we took:
 
 1. Extension runs on page and attaches a MutationObserver to scan for DOM changes that add a new form with the class `bAs`
 2. When we see that form show up, we know that a new compose or reply has been initiated
