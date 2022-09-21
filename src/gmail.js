@@ -16,12 +16,13 @@ class GmailAutoBccHandler {
         this.observer = null;
         this.rules = {};
         // Get initial rules and hookup observers
+        this.debug('getting rules from storage');
         this.getRulesFromStorage();
+        this.debug('creating email observer');
         this.createEmailFormObserver();
-        // This global observer will be used to clean up old mutation observers
+        this.debug('creating observer for garbage collection');
         this.createGlobalObserver();
-
-        //Listen for Rule Changes from config
+        this.debug('adding listener for rule changes');
         chrome.storage.onChanged.addListener((changes, namespace) =>  {
             this.getRulesFromStorage();
         });
@@ -37,10 +38,16 @@ class GmailAutoBccHandler {
             // if someone emails you and the topic has another email in it, then it would fetch that in error
             return matches[matches.length - 1];
         }
+        this.debug(`failed to discover logged-in user based on current title ${document.title}`);
         // If we cannot find it, then im not sure?
         return null;
     }
 
+    /**
+     * This is just a helper function to print debug statements into the console
+     *
+     * @param output
+     */
     debug = (...output) => {
         if(!this.debugMode) {
             return;
@@ -65,10 +72,20 @@ class GmailAutoBccHandler {
         });
     };
 
+    /**
+     * Setup the BCC emails to use
+     *
+     * @param emailAsString
+     */
     setBccEmails = (emailAsString) => {
         this.bccEmails = emailAsString;
     };
 
+    /**
+     * Setup the CC emails
+     *
+     * @param emailsAsString
+     */
     setCcEmails = (emailsAsString) => {
         this.ccEmails = emailsAsString;
     };
@@ -83,13 +100,12 @@ class GmailAutoBccHandler {
             this.knownForms = this.knownForms.filter(formId => {
                 if (!document.getElementById(formId)) {
                     if (this.observerMap[formId]) {
-                        if(this.debug) {
-                            this.debug("disconnecting missing form");
-                        }
+                        this.debug(`disconnecting missing form: ${formId}`);
                         this.observerMap[formId].disconnect();
                     }
                     return false;
                 }
+                // Form is still on the page, do nothing here
                 return true;
             });
         }, 5000);
@@ -113,14 +129,12 @@ class GmailAutoBccHandler {
      * @param elementsInserted
      */
     examineInsertedElements = (elementsInserted) => {
-        let firedAlready = false;
         elementsInserted.forEach(mutation => {
             mutation.addedNodes.forEach(node => {
                 if (!node || typeof node.querySelector !== "function") {
                     return;
                 }
                 if (node.querySelector(SELECTOR_PRIMARY_COMPOSER_FORM)) {
-                    firedAlready = true;
                     this.connectToNewForms();
                 }
             });
@@ -138,7 +152,7 @@ class GmailAutoBccHandler {
                 return;
             }
             this.knownForms.push(formElement.id);
-            this.debug("connecting to form id", formElement.id);
+            this.debug(`connecting to new form: ${formElement.id}`);
             setTimeout(() => {
                 this.checkExistingRecipients(formElement);
                 this.observeRecipients(formElement);
@@ -155,7 +169,7 @@ class GmailAutoBccHandler {
         let foundElement = null;
         formElement.querySelectorAll("div.afx").forEach(divElement => {
             if (divElement.ariaLabel && divElement.ariaLabel.toLowerCase().startsWith(`search field`)) {
-                this.debug('located search field');
+                this.debug('located search field, looking for nearby input');
                 foundElement = divElement.querySelector("input");
             }
         });
@@ -176,18 +190,13 @@ class GmailAutoBccHandler {
      * @returns {*[]}
      */
     scanForCardsUnderNode = (node) => {
-        // jump up to the nearest TR
         let parentRow = node.closest("tr");
-        let existingCards = parentRow.querySelectorAll("div[role=option]");
-        let discoveredCards = [];
-        existingCards.forEach(card => {
-            if (card.dataset && card.dataset.hovercardId) {
-                this.debug('found eligible card with dataset', card.dataset);
-                discoveredCards.push(card);
-            }
+        // Scan for divs under this with the role "option", as these are the recipients. The div contains data we also need.
+        let potentialNearbyCards = parentRow.querySelectorAll("div[role=option]");
+        // Drop anything that does not have both dataset and a hovercardId. The hoverCardId contains the email of the user.
+        return [...potentialNearbyCards].filter(card => {
+            return card.dataset && card.dataset.hovercardId;
         });
-
-        return discoveredCards;
     };
 
     /**
@@ -196,27 +205,23 @@ class GmailAutoBccHandler {
      * @param formElement
      */
     observeRecipients = (formElement) => {
-        const observerConfig = {
-            attributes: false,
-            childList: true,
-            subtree: true,
-        };
-
         const recipientChanged = (mutationList, observer) => {
             for (const mutation of mutationList) {
                 for (const addedNode of mutation.addedNodes) {
-                    if (addedNode.role === "option") {
-                        if (addedNode.dataset && addedNode.dataset.hovercardId) {
-                            this.debug('to recipient change found, updating cc and bcc recipients', addedNode.dataset);
-                            this.updateCcAndBccRecipients(addedNode.dataset.hovercardId, formElement);
-                        }
+                    if (addedNode.role === "option" && addedNode.dataset && addedNode.dataset.hovercardId) {
+                        this.debug('to recipient change found, updating cc and bcc recipients', addedNode.dataset);
+                        this.updateCcAndBccRecipients(addedNode.dataset.hovercardId, formElement);
                     }
                 }
             }
         };
 
         const observer = new MutationObserver(recipientChanged);
-        observer.observe(formElement, observerConfig);
+        observer.observe(formElement, {
+            attributes: false,
+            childList: true,
+            subtree: true,
+        });
         this.observerMap[formElement.id] = observer;
     };
 
