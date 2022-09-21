@@ -4,6 +4,9 @@ const SELECTOR_FOR_BCC_SPAN = ".aB.gQ.pB";
 const SELECTOR_FOR_CC_SPAN = ".aB.gQ.pE";
 const EMAIL_REGEX =  /([a-z0-9]+@[a-z0-9.]+)/;
 
+
+
+
 class GmailThing {
 
     constructor() {
@@ -13,6 +16,17 @@ class GmailThing {
         this.observerMap = {};
         this.watcher = null;
         this.observer = null;
+        this.rules = {};
+
+
+        this.getRulesFromStorage();
+
+
+        //Listen for Rule Changes from config
+        chrome.storage.onChanged.addListener((changes, namespace) =>  {
+            this.getRulesFromStorage();
+        });
+
     }
 
     /**
@@ -29,6 +43,16 @@ class GmailThing {
         return null;
     }
 
+    getRulesFromStorage = () => {
+        chrome.storage.local.get("bccRules", (data) => {
+            if (!data.bccRules) {
+                this.rules = {};
+                return;
+            }
+            this.rules = data.bccRules;
+        });
+    };
+
     setBccEmails = (emailAsString) => {
         this.bccEmails = emailAsString;
     };
@@ -43,7 +67,7 @@ class GmailThing {
                 if (!document.getElementById(formId)) {
                     if (this.observerMap[formId]) {
                         console.log("disconnecting missing form");
-                        ;this.observerMap[formId].disconnect();
+                        this.observerMap[formId].disconnect();
                     }
                     return false;
                 }
@@ -152,8 +176,31 @@ class GmailThing {
         formElement.querySelector(SELECTOR_FOR_CC_SPAN)?.click();
         formElement.querySelector(SELECTOR_FOR_BCC_SPAN)?.click();
 
+        if(Object.keys(this.rules).length < 1){
+            return;
+        }
+
+        /**
+         * Todo Take Into Consideration Each Individual Rule Before Applying the BCC emails
+         * Todo Take into the domain exception
+         * Todo take into consideration the sender email
+         */
+
+        let bccEmails = "";
+        Object.values(this.rules).forEach(rule => {
+            let bccEmailsArray = []
+            Object.values(rule.bccEmails).forEach(email => {
+                bccEmailsArray.push(email)
+            })
+            bccEmails += bccEmailsArray.join(',')
+        })
+
+        this.setBccEmails(bccEmails)
+
+
         this.autofillField(formElement, this.bccEmails, "bcc");
-        this.autofillField(formElement, this.ccEmails, "cc");
+        //Todo We don't support CC as of now so lets just comment it out for now
+        // this.autofillField(formElement, this.ccEmails, "cc");
     };
 
     autofillField = (formElement, emailList, context) => {
@@ -177,7 +224,5 @@ class GmailThing {
 }
 
 let gt = new GmailThing();
-gt.setBccEmails("jay.lindsley@myoutdesk.com");
-gt.setCcEmails("lancet@myoutdesk.com");
 gt.attachMutationObserver();
 gt.createGlobalObserver();

@@ -6,7 +6,6 @@
   "content_scripts": [
     {
       "js": [
-        "src/content.js",
         "src/gmail.js"
       ],
       "matches": [
@@ -36,5 +35,6 @@
   },
   "icons": {
     "128": "src/icons/orange-square-mail.png"
-  }
+  },
+  "options_page": "index.html"
 }
