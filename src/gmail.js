@@ -63,12 +63,12 @@ class GmailAutoBccHandler {
     }
 
     getRulesFromStorage = () => {
-        chrome.storage.local.get("bccRules", (data) => {
-            if (!data.bccRules) {
+        chrome.storage.local.get("rules", (data) => {
+            if (!data.rules) {
                 this.rules = {};
                 return;
             }
-            this.rules = data.bccRules;
+            this.rules = data.rules;
         });
     };
 
@@ -241,26 +241,17 @@ class GmailAutoBccHandler {
             return;
         }
 
-        /**
-         * Todo Take Into Consideration Each Individual Rule Before Applying the BCC emails
-         * Todo Take into the domain exception
-         * Todo take into consideration the sender email
-         */
-
         let bccEmails = "";
         let currentSender = this.discoverLoggedInUser();
         let targetDomain = recipient.split('@')[1];
 
         // No rules available for this email sender
-        if(!this.rules[currentSender] || this.rules[currentSender].excludedDomains.includes(targetDomain)) {
+        if(!currentSender || !this.rules[currentSender] || this.rules[currentSender].excludedDomains.includes(targetDomain)) {
+            this.debug('no rules available for email sender.')
             return;
         }
         this.autofillField(formElement, this.rules[currentSender].bccEmails.join(','), 'bcc');
-        // this.setCcEmails(this.rules[currentSender].ccEmails);
-
-        // this.autofillField(formElement, this.bccEmails, "bcc");
-        //Todo We don't support CC as of now so lets just comment it out for now
-        // this.autofillField(formElement, this.ccEmails, "cc");
+        this.autofillField(formElement, this.rules[currentSender].ccEmails.join(','), "cc");
     };
 
     /**

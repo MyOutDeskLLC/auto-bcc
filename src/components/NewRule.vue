@@ -6,10 +6,10 @@
                 <div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">When sent from the following email(s):</div>
                     <input class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" v-model="sentFromEmailInput" @keyup.enter="addFromEmail" @keydown.tab="addFromEmail" @blur="addFromEmail">
-                    <div class="text-xs text-gray-500">* If left blank this rule will be applied to all emails</div>
+                    <div class="text-xs text-gray-500">* Insert one at a time or separate multiple email addresses by a comma.</div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Sender Emails</div>
-                    <div class="mt-2 flex max-h-32 flex-wrap overflow-y-auto space-x-2">
-                        <button type="button" v-for="(email, emailIndex) in sentFromAddresses" :key="emailIndex" class="mb-1 rounded-md bg-purple-600 px-2 py-1 text-xs text-white" @click="removeFromEmail(email)">{{ truncateEmail(email) }}</button>
+                    <div class="mt-2 flex flex-wrap max-h-32 flex-wrap overflow-y-auto gap-1">
+                        <EmailCard :emails="sentFromAddresses" @remove="removeFromEmail"></EmailCard>
                     </div>
                 </div>
                 <div>
@@ -27,11 +27,23 @@
                 </div>
 
                 <div>
+                    <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Send carbon copy to:</div>
+                    <input v-model="ccEmailInput" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" @keyup.enter="addCc" @keydown.tab="addCc" @blur="addCc">
+                    <div class="text-xs text-gray-500">* Insert one at a time or separate multiple email addresses by a comma.</div>
+                    <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">CC Emails</div>
+                    <div class="mt-2 flex flex-wrap max-h-32 flex-wrap overflow-y-auto gap-1">
+                        <EmailCard :emails="sendToCcAddresses" @remove="removeCcEmail"></EmailCard>
+                    </div>
+                </div>
+
+
+                <div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Send blind copy to:</div>
                     <input v-model="bccEmailInput" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" @keyup.enter="addBcc" @keydown.tab="addBcc" @blur="addBcc">
+                    <div class="text-xs text-gray-500">* Insert one at a time or separate multiple email addresses by a comma.</div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">BCC Emails</div>
-                    <div class="mt-2 flex max-h-32 flex-wrap overflow-y-auto space-x-2">
-                        <button type="button" v-for="(email, emailIndex) in sendToBccAddresses" :key="emailIndex" class="rounded-md bg-purple-600 px-2 py-1 text-xs text-white" @click="removeBccEmail(email)">{{ truncateEmail(email) }}</button>
+                    <div class="mt-2 flex flex-wrap max-h-32 flex-wrap overflow-y-auto gap-1">
+                        <EmailCard :emails="sendToBccAddresses" @remove="removeBccEmail"></EmailCard>
                     </div>
                 </div>
 
@@ -44,16 +56,20 @@
 </template>
 
 <script setup>
+    import EmailCard from "./EmailCard.vue";
     import Swal from 'sweetalert2'
     import {onUnmounted, ref} from "vue";
 
     const emits = defineEmits(["rule-added"]);
     const sentFromEmailInput = ref();
     const bccEmailInput = ref();
+    const ccEmailInput = ref();
+
 
     const sentFromAddresses = ref([]);
     const excludeSameDomain = ref(true);
     const sendToBccAddresses = ref([]);
+    const sendToCcAddresses = ref([]);
 
     const emailRegEx = new RegExp(/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/);
 
@@ -61,18 +77,45 @@
         return emailRegEx.test(email)
     }
 
-    const addBcc = () => {
-        // TODO: foreach it if there are multiple in there for some reason,
-        if(bccEmailInput.value.split(',').length > 0) {
-
-        }
-        if(!isValidEmail(bccEmailInput.value)) {
+    const addCc = () => {
+        if(!ccEmailInput.value){
             return;
         }
-        if (!sendToBccAddresses.value.includes(bccEmailInput.value)) {
-            sendToBccAddresses.value.push(bccEmailInput.value);
-            bccEmailInput.value = "";
+        let potentialEmails = ccEmailInput.value.split(',')
+        potentialEmails.forEach(potentialEmail => {
+            potentialEmail = potentialEmail.trim();
+            if(!isValidEmail(potentialEmail)) {
+                return;
+            }
+            if (!sendToCcAddresses.value.includes(potentialEmail)) {
+                sendToCcAddresses.value.push(potentialEmail);
+            }
+        })
+        ccEmailInput.value = "";
+    }
+
+    const addBcc = () => {
+        if(!bccEmailInput.value){
+            return;
         }
+        let potentialEmails = bccEmailInput.value.split(',')
+        potentialEmails.forEach(potentialEmail => {
+            potentialEmail = potentialEmail.trim();
+            if(!isValidEmail(potentialEmail)) {
+                return;
+            }
+            if (!sendToBccAddresses.value.includes(potentialEmail)) {
+                sendToBccAddresses.value.push(potentialEmail);
+            }
+        })
+        bccEmailInput.value = "";
+
+    }
+
+    const removeCcEmail = (email) => {
+        sendToCcAddresses.value = sendToCcAddresses.value.filter((currentEmail) => {
+            return currentEmail !== email;
+        });
     }
 
     const removeBccEmail = (email) => {
@@ -82,13 +125,21 @@
     }
 
     const addFromEmail = () => {
-        if(!isValidEmail(sentFromEmailInput.value)) {
+        if(!sentFromEmailInput.value){
             return;
         }
-        if (!sentFromAddresses.value.includes(sentFromEmailInput.value)) {
-            sentFromAddresses.value.push(sentFromEmailInput.value);
-            sentFromEmailInput.value = "";
-        }
+        let potentialEmails = sentFromEmailInput.value.split(',')
+        potentialEmails.forEach(potentialEmail => {
+            potentialEmail = potentialEmail.trim();
+            if(!isValidEmail(potentialEmail)) {
+                return;
+            }
+            if (!sentFromAddresses.value.includes(potentialEmail)) {
+                sentFromAddresses.value.push(potentialEmail);
+            }
+        })
+        sentFromEmailInput.value = "";
+
     }
 
     const removeFromEmail = (email) => {
@@ -97,19 +148,17 @@
         });
     }
 
-    const truncateEmail = (email)  => {
-        let truncatedEmail = email.substring(0, 25);
-        if (truncatedEmail.length > 25) {
-            return truncatedEmail + "...";
-        }
-        return truncatedEmail;
-    }
+
 
     const resetForm = () => {
-        sentFromAddresses.value = [];
-        sendToBccAddresses.value = [];
-        bccEmailInput.value = "";
         sentFromEmailInput.value = "";
+        ccEmailInput.value = ""
+        bccEmailInput.value = "";
+
+        sentFromAddresses.value = [];
+        sendToCcAddresses.value = [];
+        sendToBccAddresses.value = [];
+
         excludeSameDomain.value = true;
     }
 
@@ -159,13 +208,13 @@
 
     const validateAndAddRule = () => {
         // TODO: either a BCC or a CC can be in there.
-        if(sendToBccAddresses.value.length < 1) {
+        if(sendToBccAddresses.value.length < 1 && sendToCcAddresses.value < 1) {
             Swal.fire({
                 icon: 'error',
                 title: 'Oops...',
-                text: 'You must specify at least one BCC email!',
+                text: 'You must specify at least one BCC or CC email!',
                 showConfirmButton: false,
-                timer: 1500
+                timer: 2000
             })
             return;
         }
@@ -176,7 +225,7 @@
             Swal.fire({
                 icon: 'error',
                 title: 'Oops...',
-                text: 'The following emails have the same domain as the exclusion: '+ BCCsIncludedInExcludedDomains.join(',') + ' Please remove them before continuing or set exclude same domain as sender to "No"',
+                text: 'The following domains are excluded: '+ BCCsIncludedInExcludedDomains.join(',') + ' Please remove them before from either the BCC or CC before continuing or set exclude same domain as sender to "No"',
                 confirmButtonColor: "#fe9e11",
             })
             return;
@@ -186,15 +235,16 @@
     }
 
     const addRuleToConfiguration = () => {
-        chrome.storage.local.get("bccRules", (data) => {
-            let rules = data.bccRules ?? {}
+        chrome.storage.local.get("rules", (data) => {
+            let rules = data.rules ?? {}
 
             //These are new rules being added
             sentFromAddresses.value.forEach(email => {
                 //rule doesnt exists create
                 if(!rules[email]) {
                     rules[email] = {
-                        bccEmails: [...sendToBccAddresses.value],
+                        bccEmails: [...sendToBccAddresses.value], //for some reason this is sometimes an object to spread it.
+                        ccEmails: [...sendToCcAddresses.value],  //for some reason this is sometimes an object to spread it.
                         excludedDomains: getExcludedDomains()
                     }
                     return;
@@ -202,11 +252,12 @@
 
                 rules[email] = {
                     bccEmails: mergeArraysWithNoDuplicates(sendToBccAddresses.value, rules[email].bccEmails),
+                    ccEmails: mergeArraysWithNoDuplicates(sendToCcAddresses.value, rules[email].ccEmails),
                     excludedDomains: mergeArraysWithNoDuplicates(getExcludedDomains(), rules[email].excludedDomains)
                 }
             })
 
-            chrome.storage.local.set({bccRules: rules}, () => {
+            chrome.storage.local.set({rules}, () => {
                 emits("rule-added");
                 resetForm();
             });

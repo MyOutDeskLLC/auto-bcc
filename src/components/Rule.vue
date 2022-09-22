@@ -3,7 +3,7 @@
         <div class="flex items-center space-x-2">
             <div class="flex-grow text-sm">
                 <h2 class="font-semibold">When Sending From </h2>
-                <div class="p-1 text-xs">{{ emailKey }}</div>
+                <div class="p-1 text-xs underline">{{ truncateEmail(emailKey) }}</div>
 
             </div>
             <div>
@@ -18,14 +18,20 @@
 
         </div>
         <div class="space-y-1">
-            <div>
-                <span class="font-semibold">send BCC to</span>
+            <div v-if="rule.ccEmails.length > 0">
+                <span class="font-semibold">send <span class="text-blue-500">CC</span> to</span>
                 <div class="p-1">
-                    <div v-for="(item, bccIndex) in rule.bccEmails" :key="bccIndex">{{ item }}</div>
+                    <div v-for="(email, ccIndex) in rule.ccEmails" :key="ccIndex">{{ truncateEmail(email) }}</div>
                 </div>
             </div>
-            <div>
-                <span class="font-semibold">excluding domains</span>
+            <div v-if="rule.bccEmails.length > 0">
+                <span class="font-semibold">send <span class="text-teal-500">BCC</span> to</span>
+                <div class="p-1">
+                    <div v-for="(email, bccIndex) in rule.bccEmails" :key="bccIndex">{{ truncateEmail(email) }}</div>
+                </div>
+            </div>
+            <div v-if="rule.excludedDomains.length > 0">
+                <span class="font-semibold"><span class="text-red-500">excluding</span> domains</span>
                 <div class="p-1">
                     <div v-for="(item, excludedDomainIndex) in rule.excludedDomains" :key="excludedDomainIndex">{{ item }}</div>
                 </div>
@@ -56,6 +62,13 @@
 
     const {emailKey} = toRefs(props);
 
+    const truncateEmail = (email)  => {
+        let truncatedEmail = email.substring(0, 25);
+        if (truncatedEmail.length >= 25) {
+            return truncatedEmail + "...";
+        }
+        return truncatedEmail;
+    }
 
     function deleteRule() {
         Swal.fire({
