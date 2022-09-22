@@ -8,7 +8,7 @@
                     <input class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" v-model="sentFromEmailInput" @keyup.enter="addFromEmail" @keydown.tab="addFromEmail" @blur="addFromEmail">
                     <div class="text-xs text-gray-500">* Insert one at a time or separate multiple email addresses by a comma.</div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Sender Emails</div>
-                    <div class="mt-2 flex flex-wrap max-h-32 flex-wrap overflow-y-auto gap-1">
+                    <div class="mt-2 flex max-h-32 flex-wrap gap-1 overflow-y-auto">
                         <EmailCard :emails="sentFromAddresses" @remove="removeFromEmail"></EmailCard>
                     </div>
                 </div>
@@ -31,7 +31,7 @@
                     <input v-model="ccEmailInput" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" @keyup.enter="addCc" @keydown.tab="addCc" @blur="addCc">
                     <div class="text-xs text-gray-500">* Insert one at a time or separate multiple email addresses by a comma.</div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">CC Emails</div>
-                    <div class="mt-2 flex flex-wrap max-h-32 flex-wrap overflow-y-auto gap-1">
+                    <div class="mt-2 flex max-h-32 flex-wrap gap-1 overflow-y-auto">
                         <EmailCard :emails="sendToCcAddresses" @remove="removeCcEmail"></EmailCard>
                     </div>
                 </div>
@@ -42,7 +42,7 @@
                     <input v-model="bccEmailInput" class="mt-1 w-full rounded-md border-gray-300 shadow-sm focus:border-brand-300 focus:ring-brand-300 sm:text-sm" type="text" @keyup.enter="addBcc" @keydown.tab="addBcc" @blur="addBcc">
                     <div class="text-xs text-gray-500">* Insert one at a time or separate multiple email addresses by a comma.</div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">BCC Emails</div>
-                    <div class="mt-2 flex flex-wrap max-h-32 flex-wrap overflow-y-auto gap-1">
+                    <div class="mt-2 flex max-h-32 flex-wrap gap-1 overflow-y-auto">
                         <EmailCard :emails="sendToBccAddresses" @remove="removeBccEmail"></EmailCard>
                     </div>
                 </div>
