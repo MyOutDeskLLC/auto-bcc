@@ -1,6 +1,6 @@
 {
-  "name": "MyOutDesk Auto BCC",
-  "description": "Auto BCC when sending emails with filters.",
+  "name": "Gmail Auto BCC",
+  "description": "Open source automatic cc/bcc for gmail.",
   "version": "1.0",
   "manifest_version": 3,
   "content_scripts": [
@@ -24,14 +24,13 @@
     "https://inbox.google.com/"
   ],
   "permissions": [
-    "scripting",
     "storage"
   ],
   "action": {
     "default_icon": {
       "128": "src/icons/orange-square-mail.png"
     },
-    "default_title": "MyOutDesk Auto BCC"
+    "default_title": "Gmail AutoBCC"
   },
   "icons": {
     "128": "src/icons/orange-square-mail.png"
