@@ -241,7 +241,6 @@ class GmailAutoBccHandler {
             return;
         }
 
-        let bccEmails = "";
         let currentSender = this.discoverLoggedInUser();
         let targetDomain = recipient.split('@')[1];
 
@@ -250,9 +249,25 @@ class GmailAutoBccHandler {
             this.debug('no rules available for email sender.')
             return;
         }
-        this.autofillField(formElement, this.rules[currentSender].bccEmails.join(','), 'bcc');
-        this.autofillField(formElement, this.rules[currentSender].ccEmails.join(','), "cc");
+
+        this.debug('current sender' + currentSender);
+
+        this.autofillField(formElement, this.rules[currentSender].bccEmails, 'bcc');
+        this.autofillField(formElement, this.rules[currentSender].ccEmails, "cc");
     };
+
+    mergeArraysWithNoDuplicates = (array1, array2) => {
+        let newArray = [...array1];
+
+        array2.forEach(item => {
+            if(!newArray.includes(item)) {
+                newArray.push(item);
+            }
+        })
+
+        return newArray;
+    }
+
 
     /**
      * Rather than using classes which honestly make no sense, we instead scan for the aria labels. Accessibility in mind,
@@ -264,23 +279,38 @@ class GmailAutoBccHandler {
      * @param context
      */
     autofillField = (formElement, emailList, context) => {
+        if(emailList.length < 1){
+            this.debug('email list empty', context)
+            return;
+        }
+        console.log(emailList)
         formElement.querySelectorAll("span").forEach(spanElement => {
             if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith(`${context} -`)) {
                 this.debug('found proper nearby span to autofill against', spanElement);
                 let properEmailInputField = spanElement.parentElement.parentElement.querySelector("input");
+
+
                 this.debug('found proper input field to use', properEmailInputField);
                 let existingEmails = properEmailInputField.value;
 
+                let emailsInsideRegularInput = properEmailInputField.value.split(',');
+                let emailsCommittedAsCards = [];
                 this.scanForCardsUnderNode(spanElement).forEach(card => {
-                    existingEmails += `${card.dataset.hovercardId},`;
+                    this.debug('scanning', card.dataset.hoverCardId)
+                    emailsCommittedAsCards.push(card.dataset.hovercardId);
                 });
 
+                let newInputArray = this.mergeArraysWithNoDuplicates(emailsInsideRegularInput, emailList);
 
-                if (!existingEmails.includes(emailList)) {
-                    properEmailInputField.value = emailList + existingEmails + ",";
-                }
+                let finalInput = newInputArray.filter((item) => {
+                    return item && !emailsCommittedAsCards.includes(item);
+                })
 
-                this.debug('updated recipients to', emailList, existingEmails);
+                this.debug(finalInput)
+
+                properEmailInputField.value = finalInput.join(',');
+
+                this.debug(`updated ${context} recipients to`, emailList, existingEmails);
             }
         });
     };
