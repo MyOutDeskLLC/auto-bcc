@@ -6,7 +6,8 @@ This extension is maintained by [MyOutDesk](https://www.myoutdesk.com/)
 This extension auto-populates the CC, BCC fields within gmail based on user-supplied rules. 
 
 ## Installation
-// TODO: add chrome store link when it goes live
+
+[Download](https://chrome.google.com/webstore/detail/gmail-auto-bcc/ofegoambibneigpiejjadgfahhncpcoh)
 
 ## Development
 Load unpacked extension point it to the `dist` folder
