@@ -2,7 +2,7 @@ const SELECTOR_PRIMARY_COMPOSER_FORM = "form.bAs";
 const SELECTOR_FOR_TO_CC_AND_BCC_FIELDS = ".wO.nr";
 const SELECTOR_FOR_BCC_SPAN = ".aB.gQ.pB";
 const SELECTOR_FOR_CC_SPAN = ".aB.gQ.pE";
-const EMAIL_REGEX =  /([a-z0-9]+@[a-z0-9.]+)/;
+const EMAIL_REGEX =  /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)/;
 
 class GmailAutoBccHandler {
 
@@ -73,24 +73,6 @@ class GmailAutoBccHandler {
     };
 
     /**
-     * Setup the BCC emails to use
-     *
-     * @param emailAsString
-     */
-    setBccEmails = (emailAsString) => {
-        this.bccEmails = emailAsString;
-    };
-
-    /**
-     * Setup the CC emails
-     *
-     * @param emailsAsString
-     */
-    setCcEmails = (emailsAsString) => {
-        this.ccEmails = emailsAsString;
-    };
-
-    /**
      * This will create a simple interval to make sure that we are cleaning up old observers
      * We don't really pay attention to when a form goes away, so this will make sure it disconnects
      * observers which are watching old forms which don't exist anymore
@@ -155,7 +137,8 @@ class GmailAutoBccHandler {
             this.debug(`connecting to new form: ${formElement.id}`);
             setTimeout(() => {
                 this.checkExistingRecipients(formElement);
-                this.observeRecipients(formElement);
+                this.observeRecipientCards(formElement);
+                this.observeRecipientInput(formElement);
             }, 500);
         });
     };
@@ -199,12 +182,43 @@ class GmailAutoBccHandler {
         });
     };
 
+    observeRecipientInput = (formElement) => {
+        this.locateProperRecipientInputField(formElement);
+    }
+
+    locateProperRecipientInputField = (formElement) => {
+        formElement.querySelectorAll("span").forEach(spanElement => {
+            if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith('to - select contacts')) {
+                let properEmailInputField = spanElement.parentElement.parentElement.parentElement.querySelector("input");
+                this.debug('Email To Field Input: ', properEmailInputField);
+                properEmailInputField.addEventListener('blur', (e) => {
+                    this.debug('firing blur event');
+                    e.target.value.split(',').forEach(recipient => {
+                        this.updateCcAndBccRecipients(recipient, formElement);
+                    })
+                })
+                properEmailInputField.addEventListener('keydown', (e) => {
+                    if(e.code !== 'Escape') {
+                        return;
+                    }
+                    setTimeout(() => {
+                        this.debug('firing esc handler to check emails');
+                        e.target.value.split(',').forEach(recipient => {
+                            this.updateCcAndBccRecipients(recipient, formElement);
+                        })
+                    }, 350)
+                    // e.target.focus();
+                })
+            }
+        });
+    }
+
     /**
      * This function hooks the intended recipients block with an observer so we know who email is being delivered to
      *
      * @param formElement
      */
-    observeRecipients = (formElement) => {
+    observeRecipientCards = (formElement) => {
         const recipientChanged = (mutationList, observer) => {
             for (const mutation of mutationList) {
                 for (const addedNode of mutation.addedNodes) {
@@ -232,6 +246,7 @@ class GmailAutoBccHandler {
      * @param formElement
      */
     updateCcAndBccRecipients = (recipient, formElement) => {
+        let currentFocus = document.querySelector(':focus');
         this.debug("adding recipients based on email rules for: ", recipient);
 
         formElement.querySelector(SELECTOR_FOR_CC_SPAN)?.click();
@@ -254,6 +269,10 @@ class GmailAutoBccHandler {
 
         this.autofillField(formElement, this.rules[currentSender].bccEmails, 'bcc');
         this.autofillField(formElement, this.rules[currentSender].ccEmails, "cc");
+
+        if(currentFocus) {
+            currentFocus.focus();
+        }
     };
 
     mergeArraysWithNoDuplicates = (array1, array2) => {
@@ -279,11 +298,16 @@ class GmailAutoBccHandler {
      * @param context
      */
     autofillField = (formElement, emailList, context) => {
-        if(emailList.length < 1){
+        if(emailList.length < 1) {
             this.debug('email list empty', context)
             return;
         }
-        console.log(emailList)
+        let validEmails = emailList.filter(email => {
+            return EMAIL_REGEX.test(email);
+        });
+        if(validEmails.length === 0) {
+            return;
+        }
         formElement.querySelectorAll("span").forEach(spanElement => {
             if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith(`${context} -`)) {
                 this.debug('found proper nearby span to autofill against', spanElement);
