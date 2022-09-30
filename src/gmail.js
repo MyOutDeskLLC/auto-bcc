@@ -260,7 +260,7 @@ class GmailAutoBccHandler {
         let targetDomain = recipient.split('@')[1];
 
         // No rules available for this email sender
-        if(!currentSender || !this.rules[currentSender] || this.rules[currentSender].excludedDomains.includes(targetDomain)) {
+        if(!currentSender || !this.rules[currentSender] || !targetDomain || this.rules[currentSender].excludedDomains.includes(targetDomain)) {
             this.debug('no rules available for email sender.')
             return;
         }
