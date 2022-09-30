@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "package": "vite build && zip -r autobcc.zip dist/",
+    "clean": "rm -rf dist && rm -f autobcc.zip",
+    "package": "npm run clean && vite build && zip -r autobcc.zip dist/",
     "preview": "vite preview"
   },
   "dependencies": {
