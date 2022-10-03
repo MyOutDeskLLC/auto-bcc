@@ -2,7 +2,8 @@ const SELECTOR_PRIMARY_COMPOSER_FORM = "form.bAs";
 const SELECTOR_FOR_TO_CC_AND_BCC_FIELDS = ".wO.nr";
 const SELECTOR_FOR_BCC_SPAN = ".aB.gQ.pB";
 const SELECTOR_FOR_CC_SPAN = ".aB.gQ.pE";
-const EMAIL_REGEX =  /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)/;
+const EMAIL_REGEX = /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)/;
+import "./icons/gray-scale-orange-square-mail.png"
 
 class GmailAutoBccHandler {
 
@@ -11,19 +12,20 @@ class GmailAutoBccHandler {
         this.ccEmails = "";
         this.bccEmails = "";
         this.knownForms = [];
+        this.formsWithDisableButton = {};
         this.observerMap = {};
         this.watcher = null;
         this.observer = null;
         this.rules = {};
         // Get initial rules and hookup observers
-        this.debug('getting rules from storage');
+        this.debug("getting rules from storage");
         this.getRulesFromStorage();
-        this.debug('creating email observer');
+        this.debug("creating email observer");
         this.createEmailFormObserver();
-        this.debug('creating observer for garbage collection');
+        this.debug("creating observer for garbage collection");
         this.createGlobalObserver();
-        this.debug('adding listener for rule changes');
-        chrome.storage.onChanged.addListener((changes, namespace) =>  {
+        this.debug("adding listener for rule changes");
+        chrome.storage.onChanged.addListener((changes, namespace) => {
             this.getRulesFromStorage();
         });
     }
@@ -33,7 +35,7 @@ class GmailAutoBccHandler {
      */
     discoverLoggedInUser = () => {
         let matches = EMAIL_REGEX.exec(document.title);
-        if(matches !== null) {
+        if (matches !== null) {
             // You may be curious why this is done. We need the LAST email to show up
             // if someone emails you and the topic has another email in it, then it would fetch that in error
             return matches[matches.length - 1];
@@ -41,7 +43,7 @@ class GmailAutoBccHandler {
         this.debug(`failed to discover logged-in user based on current title ${document.title}`);
         // If we cannot find it, then im not sure?
         return null;
-    }
+    };
 
     /**
      * This is just a helper function to print debug statements into the console
@@ -49,18 +51,18 @@ class GmailAutoBccHandler {
      * @param output
      */
     debug = (...output) => {
-        if(!this.debugMode) {
+        if (!this.debugMode) {
             return;
         }
 
         output.forEach(item => {
-            if(typeof item === 'string') {
-                console.log(`%c${item}`, 'background: #222; color: #7dd3fc;');
+            if (typeof item === "string") {
+                console.log(`%c${item}`, "background: #222; color: #7dd3fc;");
             } else {
-                console.log(`%cObject: %o`, 'background: #222; color: #7dd3fc', item);
+                console.log(`%cObject: %o`, "background: #222; color: #7dd3fc", item);
             }
-        })
-    }
+        });
+    };
 
     getRulesFromStorage = () => {
         chrome.storage.local.get("rules", (data) => {
@@ -72,6 +74,54 @@ class GmailAutoBccHandler {
         });
     };
 
+    createIgnoreEmailButton = (formId) => {
+        let tbody = document.getElementById(formId).parentElement.parentElement.parentElement;
+        this.debug(tbody);
+        let tr = document.createElement("tr");
+        let td = document.createElement("td");
+        let button = document.createElement("button");
+        let image = new Image();
+
+        image.src = chrome.runtime.getURL("src/icons/orange-square-mail.png");
+        image.style.width = "1rem";
+        image.style.height = "1rem";
+        button.style.borderWidth = "0px";
+        button.style.cursor = "pointer";
+        button.style.marginTop = "0.5rem";
+        button.style.borderRadius = "0.25rem";
+        button.style.paddingTop = "0.25rem";
+        button.style.paddingRight = "0.25rem";
+        button.style.paddingLeft = "0.25rem";
+        button.setAttribute("form-id", formId);
+        button.append(image);
+
+        button.addEventListener("click", (e) => {
+            if (this.formsWithDisableButton[formId].disabled === true) {
+                this.debug(button.firstChild);
+                let img = button.firstChild
+                img.src = chrome.runtime.getURL("src/icons/orange-square-mail.png");
+                this.formsWithDisableButton[formId].disabled = false;
+                this.debug('setting to FALSE')
+            } else {
+                this.debug(button.firstChild);
+                let img = button.firstChild
+                img.src = chrome.runtime.getURL("src/icons/gray-scale-orange-square-mail.png");
+                button.appendChild(img)
+                this.formsWithDisableButton[formId].disabled = true;
+                this.debug('setting to TRUE')
+            }
+        });
+
+
+        td.append(button);
+        //for some reason google hooks the first element in the td and does some weird styling,
+        // but only after the row is already in the dom so add the row to the dom with the td we want then add this td to the row that was added to the dom
+        let ghettoHookTdForGoogle = document.createElement("td");
+        ghettoHookTdForGoogle.classList.add("aoY");
+        tr.append(td);
+        tbody.prepend(tr);
+        tbody.childNodes[0].prepend(ghettoHookTdForGoogle);
+    };
     /**
      * This will create a simple interval to make sure that we are cleaning up old observers
      * We don't really pay attention to when a form goes away, so this will make sure it disconnects
@@ -84,13 +134,20 @@ class GmailAutoBccHandler {
                     if (this.observerMap[formId]) {
                         this.debug(`disconnecting missing form: ${formId}`);
                         this.observerMap[formId].disconnect();
+                        delete(this.formsWithDisableButton[formId])
                     }
                     return false;
+                }
+                if (!Object.keys(this.formsWithDisableButton).includes(formId)) {
+                    this.createIgnoreEmailButton(formId);
+                    this.formsWithDisableButton[formId] = {
+                        disabled: false,
+                    };
                 }
                 // Form is still on the page, do nothing here
                 return true;
             });
-        }, 5000);
+        }, 1000);
     };
 
     /**
@@ -152,13 +209,13 @@ class GmailAutoBccHandler {
         let foundElement = null;
         formElement.querySelectorAll("div.afx").forEach(divElement => {
             if (divElement.ariaLabel && divElement.ariaLabel.toLowerCase().startsWith(`search field`)) {
-                this.debug('located search field, looking for nearby input');
+                this.debug("located search field, looking for nearby input");
                 foundElement = divElement.querySelector("input");
             }
         });
 
         if (foundElement) {
-            this.debug('scanning for existing recipients under search field', foundElement);
+            this.debug("scanning for existing recipients under search field", foundElement);
             this.scanForCardsUnderNode(foundElement).forEach(item => {
                 this.updateCcAndBccRecipients(item.dataset.hovercardId, formElement);
             });
@@ -184,34 +241,34 @@ class GmailAutoBccHandler {
 
     observeRecipientInput = (formElement) => {
         this.locateProperRecipientInputField(formElement);
-    }
+    };
 
     locateProperRecipientInputField = (formElement) => {
         formElement.querySelectorAll("span").forEach(spanElement => {
-            if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith('to - select contacts')) {
+            if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith("to - select contacts")) {
                 let properEmailInputField = spanElement.parentElement.parentElement.parentElement.querySelector("input");
-                this.debug('Email To Field Input: ', properEmailInputField);
-                properEmailInputField.addEventListener('blur', (e) => {
-                    this.debug('firing blur event');
-                    e.target.value.split(',').forEach(recipient => {
+                this.debug("Email To Field Input: ", properEmailInputField);
+                properEmailInputField.addEventListener("blur", (e) => {
+                    this.debug("firing blur event");
+                    e.target.value.split(",").forEach(recipient => {
                         this.updateCcAndBccRecipients(recipient, formElement);
-                    })
-                })
-                properEmailInputField.addEventListener('keydown', (e) => {
-                    if(e.code !== 'Escape') {
+                    });
+                });
+                properEmailInputField.addEventListener("keydown", (e) => {
+                    if (e.code !== "Escape") {
                         return;
                     }
                     setTimeout(() => {
-                        this.debug('firing esc handler to check emails');
-                        e.target.value.split(',').forEach(recipient => {
+                        this.debug("firing esc handler to check emails");
+                        e.target.value.split(",").forEach(recipient => {
                             this.updateCcAndBccRecipients(recipient, formElement);
-                        })
-                    }, 350)
+                        });
+                    }, 350);
                     // e.target.focus();
-                })
+                });
             }
         });
-    }
+    };
 
     /**
      * This function hooks the intended recipients block with an observer so we know who email is being delivered to
@@ -223,7 +280,7 @@ class GmailAutoBccHandler {
             for (const mutation of mutationList) {
                 for (const addedNode of mutation.addedNodes) {
                     if (addedNode.role === "option" && addedNode.dataset && addedNode.dataset.hovercardId) {
-                        this.debug('to recipient change found, updating cc and bcc recipients', addedNode.dataset);
+                        this.debug("to recipient change found, updating cc and bcc recipients", addedNode.dataset);
                         this.updateCcAndBccRecipients(addedNode.dataset.hovercardId, formElement);
                     }
                 }
@@ -246,31 +303,35 @@ class GmailAutoBccHandler {
      * @param formElement
      */
     updateCcAndBccRecipients = (recipient, formElement) => {
-        let currentFocus = document.querySelector(':focus');
+        let currentFocus = document.querySelector(":focus");
         this.debug("adding recipients based on email rules for: ", recipient);
+        if(this.formsWithDisableButton[formElement.id] && this.formsWithDisableButton[formElement.id].disabled === true){
+            this.debug('rules disabled for form. returning early')
+            return;
+        }
 
         formElement.querySelector(SELECTOR_FOR_CC_SPAN)?.click();
         formElement.querySelector(SELECTOR_FOR_BCC_SPAN)?.click();
 
-        if(Object.keys(this.rules).length < 1) {
+        if (Object.keys(this.rules).length < 1) {
             return;
         }
 
         let currentSender = this.discoverLoggedInUser();
-        let targetDomain = recipient.split('@')[1];
+        let targetDomain = recipient.split("@")[1];
 
         // No rules available for this email sender
-        if(!currentSender || !this.rules[currentSender] || !targetDomain || this.rules[currentSender].excludedDomains.includes(targetDomain)) {
-            this.debug('no rules available for email sender.')
+        if (!currentSender || !this.rules[currentSender] || !targetDomain || this.rules[currentSender].excludedDomains.includes(targetDomain)) {
+            this.debug("no rules available for email sender.");
             return;
         }
 
-        this.debug('current sender' + currentSender);
+        this.debug("current sender" + currentSender);
 
-        this.autofillField(formElement, this.rules[currentSender].bccEmails, 'bcc');
+        this.autofillField(formElement, this.rules[currentSender].bccEmails, "bcc");
         this.autofillField(formElement, this.rules[currentSender].ccEmails, "cc");
 
-        if(currentFocus) {
+        if (currentFocus) {
             currentFocus.focus();
         }
     };
@@ -279,13 +340,13 @@ class GmailAutoBccHandler {
         let newArray = [...array1];
 
         array2.forEach(item => {
-            if(!newArray.includes(item)) {
+            if (!newArray.includes(item)) {
                 newArray.push(item);
             }
-        })
+        });
 
         return newArray;
-    }
+    };
 
 
     /**
@@ -298,29 +359,29 @@ class GmailAutoBccHandler {
      * @param context
      */
     autofillField = (formElement, emailList, context) => {
-        if(emailList.length < 1) {
-            this.debug('email list empty', context)
+        if (emailList.length < 1) {
+            this.debug("email list empty", context);
             return;
         }
         let validEmails = emailList.filter(email => {
             return EMAIL_REGEX.test(email);
         });
-        if(validEmails.length === 0) {
+        if (validEmails.length === 0) {
             return;
         }
         formElement.querySelectorAll("span").forEach(spanElement => {
             if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith(`${context} -`)) {
-                this.debug('found proper nearby span to autofill against', spanElement);
+                this.debug("found proper nearby span to autofill against", spanElement);
                 let properEmailInputField = spanElement.parentElement.parentElement.querySelector("input");
 
 
-                this.debug('found proper input field to use', properEmailInputField);
+                this.debug("found proper input field to use", properEmailInputField);
                 let existingEmails = properEmailInputField.value;
 
-                let emailsInsideRegularInput = properEmailInputField.value.split(',');
+                let emailsInsideRegularInput = properEmailInputField.value.split(",");
                 let emailsCommittedAsCards = [];
                 this.scanForCardsUnderNode(spanElement).forEach(card => {
-                    this.debug('scanning', card.dataset.hoverCardId)
+                    this.debug("scanning", card.dataset.hoverCardId);
                     emailsCommittedAsCards.push(card.dataset.hovercardId);
                 });
 
@@ -328,11 +389,11 @@ class GmailAutoBccHandler {
 
                 let finalInput = newInputArray.filter((item) => {
                     return item && !emailsCommittedAsCards.includes(item);
-                })
+                });
 
-                this.debug(finalInput)
+                this.debug(finalInput);
 
-                properEmailInputField.value = finalInput.join(',');
+                properEmailInputField.value = finalInput.join(",");
 
                 this.debug(`updated ${context} recipients to`, emailList, existingEmails);
             }
