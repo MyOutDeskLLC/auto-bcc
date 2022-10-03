@@ -12,7 +12,7 @@ class GmailAutoBccHandler {
         this.ccEmails = "";
         this.bccEmails = "";
         this.knownForms = [];
-        this.formsWithDisableButton = {};
+        this.formsEnabled = {};
         this.observerMap = {};
         this.watcher = null;
         this.observer = null;
@@ -103,19 +103,19 @@ class GmailAutoBccHandler {
         button.append(span);
 
         button.addEventListener("click", (e) => {
-            if (this.formsWithDisableButton[formId].disabled === true) {
+            if (this.formsEnabled[formId].disabled === true) {
                 this.debug(button.firstChild);
                 let img = button.firstChild
                 img.src = chrome.runtime.getURL("src/icons/orange-square-mail.png");
                 button.children[1].innerText = "Enabled";
-                this.formsWithDisableButton[formId].disabled = false;
+                this.formsEnabled[formId].disabled = false;
                 this.debug('setting to FALSE')
             } else {
                 this.debug(button.firstChild);
                 let img = button.firstChild
                 img.src = chrome.runtime.getURL("src/icons/gray-scale-orange-square-mail.png");
                 button.children[1].innerText = "Disabled";
-                this.formsWithDisableButton[formId].disabled = true;
+                this.formsEnabled[formId].disabled = true;
                 this.debug('setting to TRUE')
             }
         });
@@ -142,13 +142,13 @@ class GmailAutoBccHandler {
                     if (this.observerMap[formId]) {
                         this.debug(`disconnecting missing form: ${formId}`);
                         this.observerMap[formId].disconnect();
-                        delete(this.formsWithDisableButton[formId])
+                        delete(this.formsEnabled[formId])
                     }
                     return false;
                 }
-                if (!Object.keys(this.formsWithDisableButton).includes(formId)) {
+                if (!Object.keys(this.formsEnabled).includes(formId)) {
                     this.createIgnoreEmailButton(formId);
-                    this.formsWithDisableButton[formId] = {
+                    this.formsEnabled[formId] = {
                         disabled: false,
                     };
                 }
@@ -313,7 +313,7 @@ class GmailAutoBccHandler {
     updateCcAndBccRecipients = (recipient, formElement) => {
         let currentFocus = document.querySelector(":focus");
         this.debug("adding recipients based on email rules for: ", recipient);
-        if(this.formsWithDisableButton[formElement.id] && this.formsWithDisableButton[formElement.id].disabled === true){
+        if(this.formsEnabled[formElement.id] && this.formsEnabled[formElement.id].disabled === true){
             this.debug('rules disabled for form. returning early')
             return;
         }
