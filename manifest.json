@@ -3,6 +3,18 @@
   "description": "Open source automatic cc/bcc for gmail.",
   "version": "1.3",
   "manifest_version": 3,
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/icons/gray-scale-orange-square-mail.png",
+        "src/icons/orange-square-mail.png"
+      ],
+      "matches": [
+        "https://mail.google.com/*",
+        "https://inbox.google.com/*"
+      ]
+    }
+  ],
   "content_scripts": [
     {
       "js": [

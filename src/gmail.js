@@ -76,7 +76,6 @@ class GmailAutoBccHandler {
 
     createIgnoreEmailButton = (formId) => {
         let tbody = document.getElementById(formId).parentElement.parentElement.parentElement;
-        this.debug(tbody);
         let tr = document.createElement("tr");
         let td = document.createElement("td");
         let button = document.createElement("button");
