@@ -81,7 +81,10 @@ class GmailAutoBccHandler {
         let td = document.createElement("td");
         let button = document.createElement("button");
         let image = new Image();
-
+        let span = document.createElement("span");
+        span.innerText = "Enabled";
+        span.style.marginLeft = '0.25rem';
+        span.style.fontSize = '0.75rem';
         image.src = chrome.runtime.getURL("src/icons/orange-square-mail.png");
         image.style.width = "1rem";
         image.style.height = "1rem";
@@ -92,21 +95,26 @@ class GmailAutoBccHandler {
         button.style.paddingTop = "0.25rem";
         button.style.paddingRight = "0.25rem";
         button.style.paddingLeft = "0.25rem";
+        button.style.display = "flex";
+        button.style.alignItems = "center";
+        button.style.justifyContent = "center";
         button.setAttribute("form-id", formId);
         button.append(image);
+        button.append(span);
 
         button.addEventListener("click", (e) => {
             if (this.formsWithDisableButton[formId].disabled === true) {
                 this.debug(button.firstChild);
                 let img = button.firstChild
                 img.src = chrome.runtime.getURL("src/icons/orange-square-mail.png");
+                button.children[1].innerText = "Enabled";
                 this.formsWithDisableButton[formId].disabled = false;
                 this.debug('setting to FALSE')
             } else {
                 this.debug(button.firstChild);
                 let img = button.firstChild
                 img.src = chrome.runtime.getURL("src/icons/gray-scale-orange-square-mail.png");
-                button.appendChild(img)
+                button.children[1].innerText = "Disabled";
                 this.formsWithDisableButton[formId].disabled = true;
                 this.debug('setting to TRUE')
             }
