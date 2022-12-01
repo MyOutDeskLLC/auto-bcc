@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@headlessui/vue": "^1.7.4",
     "@inboxsdk/core": "^0.2.16",
     "gmail-js": "^1.1.3",
     "sweetalert2": "^11.4.33",
