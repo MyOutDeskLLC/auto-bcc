@@ -2,13 +2,13 @@
     <div class="relative">
         <div class="grid w-full grid-cols-1 overflow-y-auto sm:max-h-screen sm:min-h-screen sm:grid-cols-3 md:grid-cols-5">
             <div class="sm:col-span-2 sm:max-h-screen sm:max-w-4xl sm:overflow-y-auto md:col-span-4">
-                <div class="p-6 border-b">
+                <div class="border-b p-6">
                     <div class="mb-6 flex items-center space-x-1">
                         <h1 class="text-lg font-medium leading-6 text-gray-900">Options -</h1>
-                        <span class="font-normal text-xs text-gray-500"> Reload Gmail after changing options.</span>
+                        <span class="text-xs font-normal text-gray-500"> Reload Gmail after changing options.</span>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <SwitchGroup as="div" class="flex items-center justify-between w-full">
+                        <SwitchGroup as="div" class="flex w-full items-center justify-between">
                             <span class="flex flex-grow flex-col">
                               <SwitchLabel as="span" class="text-sm font-medium text-gray-900" passive>Off By Default</SwitchLabel>
                               <SwitchDescription as="span" class="text-xs text-gray-500">Auto BCC will be off by default requiring the use the inline button. </SwitchDescription>
