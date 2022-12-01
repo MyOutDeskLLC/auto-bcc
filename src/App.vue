@@ -11,7 +11,7 @@
                         <SwitchGroup as="div" class="flex items-center justify-between w-full">
                             <span class="flex flex-grow flex-col">
                               <SwitchLabel as="span" class="text-sm font-medium text-gray-900" passive>Off By Default</SwitchLabel>
-                              <SwitchDescription as="span" class="text-xs text-gray-500">Auto BCC will be off by default requiring to use the inline button. </SwitchDescription>
+                              <SwitchDescription as="span" class="text-xs text-gray-500">Auto BCC will be off by default requiring the use the inline button. </SwitchDescription>
                             </span>
                             <Switch v-model="options.offByDefault" :class="[options.offByDefault ? 'bg-brand-600' : 'bg-gray-200', 'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2']">
                                 <span aria-hidden="true" :class="[options.offByDefault ? 'translate-x-5' : 'translate-x-0', 'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out']"/>
