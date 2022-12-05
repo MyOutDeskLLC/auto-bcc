@@ -5,6 +5,10 @@ const SELECTOR_FOR_CC_SPAN = ".aB.gQ.pE";
 const EMAIL_REGEX = /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)/;
 import "./icons/gray-scale-orange-square-mail.png"
 
+const DEFAULT_OPTIONS = {
+    offByDefault: false
+}
+
 class GmailAutoBccHandler {
 
     constructor() {
@@ -17,9 +21,12 @@ class GmailAutoBccHandler {
         this.watcher = null;
         this.observer = null;
         this.rules = {};
+        this.options = {};
         // Get initial rules and hookup observers
         this.debug("getting rules from storage");
         this.getRulesFromStorage();
+        this.debug("getting options from storage");
+        this.getOptionsFromStorage();
         this.debug("creating email observer");
         this.createEmailFormObserver();
         this.debug("creating observer for garbage collection");
@@ -74,6 +81,16 @@ class GmailAutoBccHandler {
         });
     };
 
+    getOptionsFromStorage = () => {
+        chrome.storage.local.get("options", (data) => {
+            if (!data.options) {
+                this.options = DEFAULT_OPTIONS;
+                return;
+            }
+            this.options = data.options;
+        });
+    }
+
     createIgnoreEmailButton = (formId) => {
         let tbody = document.getElementById(formId).parentElement.parentElement.parentElement;
         let tr = document.createElement("tr");
@@ -81,10 +98,10 @@ class GmailAutoBccHandler {
         let button = document.createElement("button");
         let image = new Image();
         let span = document.createElement("span");
-        span.innerText = "Enabled";
+        span.innerText = this.options.offByDefault === false ? "AutoBCC Enabled" : "AutoBCC Disabled";
         span.style.marginLeft = '0.25rem';
         span.style.fontSize = '0.75rem';
-        image.src = chrome.runtime.getURL("src/icons/orange-square-mail.png");
+        image.src = this.options.offByDefault === false ? chrome.runtime.getURL("src/icons/orange-square-mail.png") : chrome.runtime.getURL("src/icons/gray-scale-orange-square-mail.png");
         image.style.width = "1rem";
         image.style.height = "1rem";
         button.style.borderWidth = "0px";
@@ -106,14 +123,14 @@ class GmailAutoBccHandler {
                 this.debug(button.firstChild);
                 let img = button.firstChild
                 img.src = chrome.runtime.getURL("src/icons/orange-square-mail.png");
-                button.children[1].innerText = "Enabled";
+                button.children[1].innerText = "AutoBCC Enabled";
                 this.formsEnabled[formId].disabled = false;
                 this.debug('setting to FALSE')
             } else {
                 this.debug(button.firstChild);
                 let img = button.firstChild
                 img.src = chrome.runtime.getURL("src/icons/gray-scale-orange-square-mail.png");
-                button.children[1].innerText = "Disabled";
+                button.children[1].innerText = "AutoBCC Disabled";
                 this.formsEnabled[formId].disabled = true;
                 this.debug('setting to TRUE')
             }
@@ -146,10 +163,10 @@ class GmailAutoBccHandler {
                     return false;
                 }
                 if (!Object.keys(this.formsEnabled).includes(formId)) {
-                    this.createIgnoreEmailButton(formId);
                     this.formsEnabled[formId] = {
-                        disabled: false,
+                        disabled: this.options.offByDefault === true ? true : false,
                     };
+                    this.createIgnoreEmailButton(formId);
                 }
                 // Form is still on the page, do nothing here
                 return true;
