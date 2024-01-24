@@ -1,4 +1,5 @@
 const SELECTOR_PRIMARY_COMPOSER_FORM = "form.bAs";
+const SELECTOR_FOR_FROM_SPAN = '.az2.az4.L3 span';
 const SELECTOR_FOR_BCC_SPAN = ".aB.gQ.pB";
 const SELECTOR_FOR_CC_SPAN = ".aB.gQ.pE";
 const EMAIL_REGEX = /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)/;
@@ -48,6 +49,30 @@ class GmailAutoBccHandler {
         this.debug(`Failed to discover logged-in user based on current title ${document.title}`);
         // If we cannot find it, then im not sure?
         return null;
+    };
+
+    /**
+     * This function will discover the current "from" address in the email form,
+     * if it exists.  If it does not exist, then it will return the logged-in user.
+     */
+    discoverCurrentSender = () => {
+        // Find the span element containing the email address using the defined
+        // selector.  This span element is only present when the user has
+        // multiple "send as" addresses configured.
+        const fromField = document.querySelector(SELECTOR_FOR_FROM_SPAN);
+
+        if (fromField) {
+            // Extracting the email address using regex
+            const emailMatch = fromField.textContent.match(EMAIL_REGEX);
+            if (emailMatch) {
+                return emailMatch[0]; // Return the extracted email address
+            } else {
+                this.debug(`Failed to extract sender email from: ${fromField.textContent}`);
+            }
+        }
+
+        this.debug(`Failed to discover current sender, returning logged-in user`);
+        return this.discoverLoggedInUser();
     };
 
     /**
@@ -389,7 +414,7 @@ class GmailAutoBccHandler {
         }
 
         // Determine the current sender and target domain
-        let currentSender = this.discoverLoggedInUser();
+        let currentSender = this.discoverCurrentSender();
         let targetDomain = recipient.split("@")[1];
 
         // Check if there are any email rules available for this sender and domain
@@ -399,7 +424,7 @@ class GmailAutoBccHandler {
         }
 
         // Apply the email rules to the BCC and CC fields
-        this.debug("current sender" + currentSender);
+        this.debug("current sender: " + currentSender);
         this.autofillField(formElement, this.rules[currentSender].bccEmails, "bcc");
         this.autofillField(formElement, this.rules[currentSender].ccEmails, "cc");
 
