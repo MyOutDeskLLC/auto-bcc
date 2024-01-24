@@ -394,8 +394,10 @@ class GmailAutoBccHandler {
 
         this.debug(this.formsEnabled);
         if (!this.formsEnabled[formElement.id]) {
-            this.debug("Form not found returning early");
-            return;
+            this.debug("Form not found. Trying again in 250ms");
+            setTimeout(() => {
+                this.updateCcAndBccRecipients(recipient, formElement);
+            }, 250);
         }
 
         // Check if email rules are disabled for this form
