@@ -398,6 +398,7 @@ class GmailAutoBccHandler {
             setTimeout(() => {
                 this.updateCcAndBccRecipients(recipient, formElement);
             }, 250);
+            return;
         }
 
         // Check if email rules are disabled for this form
