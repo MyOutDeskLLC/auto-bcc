@@ -9,7 +9,7 @@
                     <div class="text-xs text-gray-500">* Insert one at a time or separate multiple email addresses by a comma.</div>
                     <div class="text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">Sender Emails</div>
                     <div class="mt-2 flex max-h-32 flex-wrap gap-1 overflow-y-auto">
-                        <EmailCard :emails="sentFromAddresses" @remove="removeFromEmail"></EmailCard>
+												<EmailCard :emails="sentFromAddresses" @remove="removeFromEmail"></EmailCard>
                     </div>
                 </div>
                 <div>
@@ -55,10 +55,10 @@
     </div>
 </template>
 
-<script setup>
-    import EmailCard from "./EmailCard.vue";
+<script setup lang="ts">
     import Swal from 'sweetalert2'
     import {onUnmounted, ref} from "vue";
+		import EmailCard from "./EmailCard.vue";
 
     const emits = defineEmits(["rule-added"]);
     const sentFromEmailInput = ref();
@@ -66,14 +66,14 @@
     const ccEmailInput = ref();
 
 
-    const sentFromAddresses = ref([]);
+    const sentFromAddresses = ref<string[]>([]);
     const excludeSameDomain = ref(true);
-    const sendToBccAddresses = ref([]);
-    const sendToCcAddresses = ref([]);
+    const sendToBccAddresses = ref<string[]>([]);
+    const sendToCcAddresses = ref<string[]>([]);
 
     const emailRegEx = new RegExp(/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/);
 
-    const isValidEmail = (email) => {
+    const isValidEmail = (email: string) => {
         return emailRegEx.test(email)
     }
 
@@ -82,7 +82,7 @@
             return;
         }
         let potentialEmails = ccEmailInput.value.split(',')
-        potentialEmails.forEach(potentialEmail => {
+        potentialEmails.forEach((potentialEmail: string) => {
             potentialEmail = potentialEmail.trim();
             if(!isValidEmail(potentialEmail)) {
                 return;
@@ -99,7 +99,7 @@
             return;
         }
         let potentialEmails = bccEmailInput.value.split(',')
-        potentialEmails.forEach(potentialEmail => {
+        potentialEmails.forEach((potentialEmail: string) => {
             potentialEmail = potentialEmail.trim();
             if(!isValidEmail(potentialEmail)) {
                 return;
@@ -112,13 +112,13 @@
 
     }
 
-    const removeCcEmail = (email) => {
+    const removeCcEmail = (email: string) => {
         sendToCcAddresses.value = sendToCcAddresses.value.filter((currentEmail) => {
             return currentEmail !== email;
         });
     }
 
-    const removeBccEmail = (email) => {
+    const removeBccEmail = (email: string) => {
         sendToBccAddresses.value = sendToBccAddresses.value.filter((currentEmail) => {
             return currentEmail !== email;
         });
@@ -129,7 +129,7 @@
             return;
         }
         let potentialEmails = sentFromEmailInput.value.split(',')
-        potentialEmails.forEach(potentialEmail => {
+        potentialEmails.forEach((potentialEmail: string) => {
             potentialEmail = potentialEmail.trim();
             if(!isValidEmail(potentialEmail)) {
                 return;
@@ -142,7 +142,7 @@
 
     }
 
-    const removeFromEmail = (email) => {
+    const removeFromEmail = (email: string) => {
         sentFromAddresses.value = sentFromAddresses.value.filter((currentEmail) => {
             return currentEmail !== email;
         });
@@ -162,7 +162,7 @@
         excludeSameDomain.value = true;
     }
 
-    const getDomains = (emails) => {
+    const getDomains = (emails: string[]) => {
         let domains = emails.map((email) => {
             return email.split("@")[1];
         });
@@ -180,7 +180,7 @@
         return getDomains(sentFromAddresses.value)
     }
 
-    const mergeArraysWithNoDuplicates = (array1, array2) => {
+    const mergeArraysWithNoDuplicates = (array1: string[], array2: string[]) => {
         let newArray = [...array1];
 
         array2.forEach(item => {
@@ -194,7 +194,7 @@
 
     const getDomainsThatAreExclusions = () => {
         let excludedDomains = getExcludedDomains();
-        let BCCsIncludedInExcludedDomains = []
+        let BCCsIncludedInExcludedDomains: string[] = []
         let bccDomains = getDomains(sendToBccAddresses.value);
         bccDomains.forEach(domain => {
             excludedDomains.forEach(excludedDomain => {
@@ -208,7 +208,7 @@
 
     const validateAndAddRule = () => {
         // TODO: either a BCC or a CC can be in there.
-        if(sendToBccAddresses.value.length < 1 && sendToCcAddresses.value < 1) {
+        if(sendToBccAddresses.value.length < 1 && sendToCcAddresses.value.length < 1) {
             Swal.fire({
                 icon: 'error',
                 title: 'Oops...',
@@ -235,7 +235,7 @@
     }
 
     const addRuleToConfiguration = () => {
-        chrome.storage.local.get("rules", (data) => {
+        chrome.storage.local.get("rules", (data: Record<string, any>) => {
             let rules = data.rules ?? {}
 
             //These are new rules being added

@@ -36,7 +36,7 @@
 </template>
 
 
-<script setup>
+<script setup lang="ts">
     import "./app.css";
     import Rule from "./components/Rule.vue";
     import NewRule from "./components/NewRule.vue";
@@ -44,45 +44,46 @@
     import {onMounted, ref, reactive, watch} from "vue";
     import {Switch, SwitchDescription, SwitchGroup, SwitchLabel} from "@headlessui/vue";
 
-    const rules = ref({});
+    const rules: Record<string, any> = ref({});
     let options = reactive({
         offByDefault: false
     })
 
-    watch(options, (newOptions, oldOptions) => {
+    watch(options, (newOptions) => {
         saveOptions(newOptions)
     })
 
 
     function getRulesFromStorage() {
-        chrome.storage.local.get("rules", (data) => {
+        chrome.storage.local.get("rules", (data: Record<string, any>) => {
             rules.value = data.rules ?? {};
         });
     }
 
     function getOptionsFromStorage() {
-        chrome.storage.local.get("options", (data) => {
+        chrome.storage.local.get("options", (data: Record<string, any>) => {
             let tmpOptions = data && data.options ? data.options : {
                 offByDefault: false
             };
 
-            Object.keys(tmpOptions).forEach(key => {
+            Object.keys(tmpOptions).forEach((key) => {
+								//@ts-ignore
                 options[key] = tmpOptions[key];
             })
         });
     }
 
-    function saveRules(value) {
+    function saveRules(value: string) {
         chrome.storage.local.set({rules: value}, () => {
         });
     }
 
-    function saveOptions(options){
+    function saveOptions(options: Record<string,any>){
         chrome.storage.local.set({options: options}, () => {
         });
     }
 
-    function deleteRule(ruleId) {
+    function deleteRule(ruleId: string) {
         delete rules.value[ruleId];
         saveRules(rules.value);
     }

@@ -11,18 +11,23 @@
     </button>
 </template>
 
-<script setup>
-    const emits = defineEmits(["remove"]);
-    const props = defineProps({
-        emails: Array
-    });
+<script setup lang="ts">
+		const emits = defineEmits(["remove"]);
 
+		withDefaults(
+					defineProps<{
+							emails?: string[];
+					}>(),
+					{
+							emails: ()=> [],
+					}
+		);
 
-    function removeEmail(email) {
+    function removeEmail(email: string) {
         emits("remove", email);
     }
 
-    const truncateEmail = (email) => {
+    const truncateEmail = (email: string) => {
         let truncatedEmail = email.substring(0, 25);
         if (truncatedEmail.length >= 25) {
             return truncatedEmail + "...";

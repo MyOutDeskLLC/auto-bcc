@@ -41,27 +41,37 @@
     </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
     import Swal from "sweetalert2";
     import {toRefs} from "vue";
 
     const emits = defineEmits(["delete-rule"]);
-    const props = defineProps({
-        emailKey: String,
-        rule: {
-            type: Object, default: () => {
-                return {
-                    excludedDomains: [],
-                    bccEmails: [],
-                };
-            },
-        },
-        index: Number,
-    });
+		const props = withDefaults(
+					defineProps<{
+							emailKey?: string;
+							rule: {
+									excludedDomains: string[];
+									bccEmails: string[];
+									ccEmails: string[]
+							}
+							index: number,
+					}>(),
+					{
+							emailKey: "",
+							rule: () => {
+									return {
+											excludedDomains: [],
+											bccEmails: [],
+											ccEmails: []
+									}
+							} ,
+							index: 0
+					}
+		);
 
     const {emailKey} = toRefs(props);
 
-    const truncateEmail = (email)  => {
+    const truncateEmail = (email: String)  => {
         let truncatedEmail = email.substring(0, 25);
         if (truncatedEmail.length >= 25) {
             return truncatedEmail + "...";
