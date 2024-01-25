@@ -27,7 +27,7 @@ Gmail is a mess UI wise, so this is the approach we took:
 5. Attach mutation observers to watch for new inputs \ new cards which may show up in the `To` field
 6. Populate the CC, BCC based on the existing "To" field, or populate when a recipient is added
 
-Hopefully this provides a long-lasting solution without much pain. You can review the entire code [here](./src/gmail.js)
+Hopefully this provides a long-lasting solution without much pain. You can review the entire code [here](./src/gmail.ts)
 
 ### Building For Distribution
 You can build this extension by running:
