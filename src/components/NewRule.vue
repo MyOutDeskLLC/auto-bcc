@@ -52,13 +52,22 @@
         <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
             <button type="button" class="inline-flex w-full justify-center rounded-md border border-transparent px-4 py-2 text-base font-medium text-white shadow-sm bg-brand-500 hover:bg-brand-600 focus:ring-brand-400 focus:outline-none focus:ring-2 focus:ring-offset-2 sm:ml-3 sm:w-auto sm:text-sm" @click="validateAndAddRule">Add Rule</button>
         </div>
+
+        <AlertDialog :open="!!errorMessage"
+                     variant="error"
+                     title="Oops..."
+                     :text="errorMessage"
+                     :confirm-text="errorAutoCloses ? '' : 'OK'"
+                     :auto-close-ms="errorAutoCloses ? 2000 : 0"
+                     @confirm="errorMessage = ''"
+                     @close="errorMessage = ''"/>
     </div>
 </template>
 
 <script setup lang="ts">
-    import Swal from 'sweetalert2'
     import {onUnmounted, ref} from "vue";
 		import EmailCard from "./EmailCard.vue";
+    import AlertDialog from "./AlertDialog.vue";
 
     const emits = defineEmits(["rule-added"]);
     const sentFromEmailInput = ref();
@@ -70,6 +79,14 @@
     const excludeSameDomain = ref(true);
     const sendToBccAddresses = ref<string[]>([]);
     const sendToCcAddresses = ref<string[]>([]);
+
+    const errorMessage = ref("");
+    const errorAutoCloses = ref(false);
+
+    const showError = (message: string, autoClose = false) => {
+        errorAutoCloses.value = autoClose;
+        errorMessage.value = message;
+    }
 
     const emailRegEx = new RegExp(/^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/);
 
@@ -209,25 +226,14 @@
     const validateAndAddRule = () => {
         // TODO: either a BCC or a CC can be in there.
         if(sendToBccAddresses.value.length < 1 && sendToCcAddresses.value.length < 1) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Oops...',
-                text: 'You must specify at least one BCC or CC email!',
-                showConfirmButton: false,
-                timer: 2000
-            })
+            showError('You must specify at least one BCC or CC email!', true);
             return;
         }
 
         let BCCsIncludedInExcludedDomains = getDomainsThatAreExclusions();
 
         if(BCCsIncludedInExcludedDomains.length > 0) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Oops...',
-                text: 'The following domains are excluded: '+ BCCsIncludedInExcludedDomains.join(',') + ' Please remove them before from either the BCC or CC before continuing or set exclude same domain as sender to "No"',
-                confirmButtonColor: "#fe9e11",
-            })
+            showError('The following domains are excluded: '+ BCCsIncludedInExcludedDomains.join(',') + ' Please remove them before from either the BCC or CC before continuing or set exclude same domain as sender to "No"');
             return;
         }
 

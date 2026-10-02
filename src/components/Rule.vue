@@ -38,12 +38,19 @@
             </div>
 
         </div>
+
+        <AlertDialog :open="confirmingDelete"
+                     title="Are you sure you want to delete this rule?"
+                     confirm-text="Yes, delete it!"
+                     cancel-text="Cancel"
+                     @confirm="confirmDelete"
+                     @close="confirmingDelete = false"/>
     </div>
 </template>
 
 <script setup lang="ts">
-    import Swal from "sweetalert2";
-    import {toRefs} from "vue";
+    import {ref, toRefs} from "vue";
+    import AlertDialog from "./AlertDialog.vue";
 
     const emits = defineEmits(["delete-rule"]);
 		const props = withDefaults(
@@ -79,20 +86,15 @@
         return truncatedEmail;
     }
 
-    function deleteRule() {
-        Swal.fire({
-            title: "Are you sure you want to delete this rule?",
-            icon: "warning",
-            showCancelButton: true,
-            confirmButtonColor: "#fe9e11",
-            cancelButtonColor: "#D6D3D1",
-            confirmButtonText: "Yes, delete it!",
-        }).then((result) => {
-            if (result.isConfirmed) {
-                emits("delete-rule", emailKey.value);
-            }
-        });
+    const confirmingDelete = ref(false);
 
+    function deleteRule() {
+        confirmingDelete.value = true;
+    }
+
+    function confirmDelete() {
+        confirmingDelete.value = false;
+        emits("delete-rule", emailKey.value);
     }
 
 </script>
