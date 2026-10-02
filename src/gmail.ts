@@ -6,7 +6,8 @@ const EMAIL_REGEX = /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-
 import "./icons/gray-scale-orange-square-mail.png"
 
 const DEFAULT_OPTIONS = {
-    offByDefault: false
+    offByDefault: false,
+    hideInlineButton: false
 }
 
 class GmailAutoBccHandler {
@@ -19,6 +20,7 @@ class GmailAutoBccHandler {
     public observer: any;
     public rules: Record<string, any>;
     public options: Record<string, any>;
+    public autofilling: boolean;
 
     constructor() {
         this.debugMode = true;
@@ -30,6 +32,7 @@ class GmailAutoBccHandler {
         this.observer = null;
         this.rules = {};
         this.options = {};
+        this.autofilling = false;
         // Get initial rules and hookup observers
         this.debug("Retrieving email rules from local storage.");
         this.getRulesFromStorage();
@@ -124,6 +127,10 @@ class GmailAutoBccHandler {
     }
 
     createIgnoreEmailButton = (formId: string) => {
+        if (this.options.hideInlineButton === true) {
+            return;
+        }
+
         let tbody = document.getElementById(formId)?.parentElement?.parentElement?.parentElement;
 
         if (!tbody) {
@@ -417,6 +424,12 @@ class GmailAutoBccHandler {
             return;
         }
 
+        // Autofilling moves focus into the CC/BCC inputs, which fires the "To" input's blur handler and calls back in
+        // here. The rules for this sender are already being applied, so ignore those nested calls.
+        if (this.autofilling) {
+            return;
+        }
+
         // Store the currently focused element, so it can be refocused later
         let currentFocus = document.querySelector<HTMLElement>(":focus");
 
@@ -441,6 +454,7 @@ class GmailAutoBccHandler {
 
         // Check if there are any email rules defined
         if (Object.keys(this.rules).length < 1) {
+            this.debug("no email rules defined.");
             return;
         }
 
@@ -456,8 +470,39 @@ class GmailAutoBccHandler {
 
         // Apply the email rules to the BCC and CC fields
         this.debug("current sender: " + currentSender);
-        this.autofillField(formElement, this.rules[currentSender].bccEmails, "bcc");
-        this.autofillField(formElement, this.rules[currentSender].ccEmails, "cc");
+        this.autofilling = true;
+        this.applyRuleWhenFieldsOpen(formElement, this.rules[currentSender], currentFocus);
+    };
+
+    /**
+     * Gmail renders the CC and BCC inputs shortly after their links are clicked, and an input can't be typed into
+     * until it is visible. Wait for the inputs this rule needs to show up, then fill them in.
+     *
+     * @param formElement
+     * @param rule
+     * @param currentFocus
+     * @param attempt
+     */
+    applyRuleWhenFieldsOpen = (formElement: HTMLElement, rule: Record<string, any>, currentFocus: HTMLElement | null, attempt = 0) => {
+        let neededContexts = [["bcc", rule.bccEmails], ["cc", rule.ccEmails]]
+            .filter(([, emails]) => emails.length > 0)
+            .map(([context]) => context as string);
+        let fieldsOpen = neededContexts.every(context => this.findRecipientInput(formElement, context)?.offsetParent);
+
+        if (!fieldsOpen && attempt < 20) {
+            setTimeout(() => this.applyRuleWhenFieldsOpen(formElement, rule, currentFocus, attempt + 1), 100);
+            return;
+        }
+        if (!fieldsOpen) {
+            this.debug("CC/BCC fields never became visible, filling in what we can.");
+        }
+
+        try {
+            this.autofillField(formElement, rule.bccEmails, "bcc");
+            this.autofillField(formElement, rule.ccEmails, "cc");
+        } finally {
+            this.autofilling = false;
+        }
 
         // Refocus the previously focused element
         if (currentFocus) {
@@ -480,6 +525,38 @@ class GmailAutoBccHandler {
 
 
     /**
+     * Gmail keeps its own model of the recipient fields, so setting an input's value directly leaves raw text that is
+     * never turned into a recipient chip. Inserting text as if it were typed keeps Gmail's model in sync.
+     *
+     * @param input
+     * @param text
+     */
+    typeIntoInput = (input: HTMLInputElement, text: string) => {
+        input.focus();
+        return document.execCommand("insertText", false, text);
+    };
+
+    /**
+     * Simulates pressing Enter, which makes Gmail convert the typed address into a recipient chip. Gmail checks the
+     * legacy keyCode/which properties, so they have to be passed to the constructor. Overriding them on the event
+     * object afterwards only changes this content script's isolated world, and Gmail's page scripts still see 0.
+     *
+     * @param input
+     */
+    pressEnter = (input: HTMLInputElement) => {
+        ["keydown", "keypress", "keyup"].forEach(type => {
+            input.dispatchEvent(new KeyboardEvent(type, {
+                key: "Enter",
+                code: "Enter",
+                keyCode: 13,
+                which: 13,
+                bubbles: true,
+                cancelable: true,
+            }));
+        });
+    };
+
+    /**
      * We decided to use aria labels instead of classes to locate elements since they are more accessible and less
      * likely to change frequently. We scan for the cards and emails using this as an anchor point.
      *
@@ -498,39 +575,75 @@ class GmailAutoBccHandler {
         if (validEmails.length === 0) {
             return;
         }
-        formElement.querySelectorAll("span").forEach((spanElement: HTMLSpanElement) => {
-            if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith(`${context} -`)) {
-                this.debug("found proper nearby span to autofill against", spanElement);
-                let properEmailInputField = spanElement?.parentElement?.parentElement?.querySelector("input");
 
-                if (!properEmailInputField) {
-                    return;
-                }
+        let spanElement = this.findRecipientLabel(formElement, context);
+        let properEmailInputField = this.findRecipientInput(formElement, context);
+        if (!spanElement || !properEmailInputField) {
+            return;
+        }
 
+        this.debug("found proper input field to use", properEmailInputField);
+        let existingEmails = properEmailInputField.value;
 
-                this.debug("found proper input field to use", properEmailInputField);
-                let existingEmails = properEmailInputField.value;
+        let emailsInsideRegularInput = properEmailInputField.value.split(",").map(email => email.trim());
+        let emailsCommittedAsCards: string[] = [];
+        this.scanForCardsUnderNode(spanElement).forEach(card => {
+            this.debug(`Found Card: ${card.dataset.hovercardId}`)
+            emailsCommittedAsCards.push(card.dataset.hovercardId);
+        });
 
-                let emailsInsideRegularInput = properEmailInputField.value.split(",");
-                let emailsCommittedAsCards: string[] = [];
-                this.scanForCardsUnderNode(spanElement).forEach(card => {
-                    this.debug(`Found Card: ${card.dataset.hovercardId}`)
-                    emailsCommittedAsCards.push(card.dataset.hovercardId);
-                });
+        let emailsToAdd = validEmails.filter((email) => {
+            return !emailsCommittedAsCards.includes(email) && !emailsInsideRegularInput.includes(email);
+        });
 
-                let newInputArray = this.mergeArraysWithNoDuplicates(emailsInsideRegularInput, emailList);
+        this.debug(emailsToAdd);
 
-                let finalInput = newInputArray.filter((item) => {
-                    return item && !emailsCommittedAsCards.includes(item);
-                });
+        if (emailsToAdd.length === 0) {
+            return;
+        }
 
-                this.debug(finalInput);
-
-                properEmailInputField.value = finalInput.join(",");
-
-                this.debug(`updated ${context} recipients to`, emailList, existingEmails);
+        let inputField = properEmailInputField;
+        inputField.focus();
+        // Commit anything already typed in the field so the new addresses are not appended onto it.
+        if (inputField.value.trim()) {
+            this.pressEnter(inputField);
+        }
+        emailsToAdd.forEach(email => {
+            if (this.typeIntoInput(inputField, email)) {
+                this.pressEnter(inputField);
             }
         });
+
+        // If Gmail didn't turn the addresses into chips, fall back to leaving them as raw text in the input, which
+        // Gmail still sends to.
+        setTimeout(() => {
+            let emailsNowCards = this.scanForCardsUnderNode(spanElement).map(card => card.dataset.hovercardId);
+            let missingEmails = emailsToAdd.filter(email => !emailsNowCards.includes(email) && !inputField.value.includes(email));
+            if (missingEmails.length === 0) {
+                return;
+            }
+            this.debug(`Could not add ${context} recipients as chips, falling back to raw text`, missingEmails);
+            let rawEmails = inputField.value.split(",").map(email => email.trim()).filter(email => email);
+            inputField.value = this.mergeArraysWithNoDuplicates(rawEmails, missingEmails).join(",");
+        }, 300);
+
+        this.debug(`updated ${context} recipients to`, emailList, existingEmails);
+    };
+
+    /**
+     * Finds the label span for the "cc" or "bcc" field, which is used as an anchor to locate the input and its cards.
+     *
+     * @param formElement
+     * @param context
+     */
+    findRecipientLabel = (formElement: HTMLElement, context: string) => {
+        return [...formElement.querySelectorAll("span")].find((spanElement: HTMLSpanElement) => {
+            return spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith(`${context} -`);
+        }) ?? null;
+    };
+
+    findRecipientInput = (formElement: HTMLElement, context: string) => {
+        return this.findRecipientLabel(formElement, context)?.parentElement?.parentElement?.querySelector("input") ?? null;
     };
 }
 
