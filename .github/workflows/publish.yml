@@ -11,18 +11,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions/setup-node@v1
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 16
+          node-version: 22
+          cache: npm
       - name: Build
         run: |
+          npm ci
           npm run package
       - name: Upload & release
-        uses: mnao305/chrome-extension-upload@3.0.0
+        uses: mnao305/chrome-extension-upload@v7.0.0
         with:
           file-path: autobcc.zip
           extension-id: ofegoambibneigpiejjadgfahhncpcoh
+          publisher-id: ${{ secrets.PUBLISHER_ID }}
           client-id: ${{ secrets.CLIENT_ID }}
           client-secret: ${{ secrets.CLIENT_SECRET }}
           refresh-token: ${{ secrets.REFRESH_TOKEN }}
