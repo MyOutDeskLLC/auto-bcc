@@ -35,7 +35,14 @@ describe("log", () => {
         const details = new Error("boom");
 
         composeLog(":r1").error("Failed to fill in CC/BCC.", details);
-        expect(error).toHaveBeenCalledWith(expect.stringContaining("AutoBCC"), expect.any(String), "", details);
-        expect(error.mock.calls[0][0]).toContain("[compose :r1] Failed to fill in CC/BCC.");
+        expect(error).toHaveBeenCalledWith("[AutoBCC] [compose :r1] Failed to fill in CC/BCC.", details);
+    });
+
+    it("styles debug messages with the AutoBCC tag", () => {
+        const debug = vi.spyOn(console, "log").mockImplementation(() => {});
+        setDebugLogging(true);
+
+        composeLog(":r1").debug("Opened.");
+        expect(debug).toHaveBeenCalledWith("%cAutoBCC%c [compose :r1] Opened.", expect.any(String), "");
     });
 });

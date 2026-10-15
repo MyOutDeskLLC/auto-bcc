@@ -17,7 +17,8 @@ class GmailAutoBccHandler {
     public knownForms: string[];
     public formsEnabled: Record<string, any>;
     public observerMap: Record<string, any>;
-    public observer: any;
+    public formObserver: MutationObserver | null;
+    public cleanupTimer: ReturnType<typeof setInterval> | null;
     public rules: Record<string, Rule>;
     public options: Record<string, any>;
     public autofilling: boolean;
@@ -28,7 +29,8 @@ class GmailAutoBccHandler {
         this.knownForms = [];
         this.formsEnabled = {};
         this.observerMap = {};
-        this.observer = null;
+        this.formObserver = null;
+        this.cleanupTimer = null;
         this.rules = {};
         this.options = {};
         this.autofilling = false;
@@ -77,6 +79,34 @@ class GmailAutoBccHandler {
         const loggedInUser = this.discoverLoggedInUser();
         log.debug(`No "from" address in the compose window, using the signed-in address ${loggedInUser}.`);
         return loggedInUser;
+    };
+
+    /**
+     * When the extension is reloaded or updated, the copy of this script already running in Gmail is cut off from it,
+     * and any chrome.* call throws "Extension context invalidated". Detect that and stop this copy for good; the new
+     * version takes over once Gmail is reloaded.
+     */
+    isExtensionAlive = () => {
+        if (chrome.runtime?.id) {
+            return true;
+        }
+        this.shutDown();
+        return false;
+    };
+
+    shutDown = () => {
+        if (this.cleanupTimer === null && this.formObserver === null) {
+            return;
+        }
+        if (this.cleanupTimer !== null) {
+            clearInterval(this.cleanupTimer);
+            this.cleanupTimer = null;
+        }
+        this.formObserver?.disconnect();
+        this.formObserver = null;
+        Object.values(this.observerMap).forEach(observer => observer.disconnect());
+        this.observerMap = {};
+        log.info("The extension was reloaded or updated. Reload Gmail to use the new version.");
     };
 
     getRulesFromStorage = () => {
@@ -131,6 +161,9 @@ class GmailAutoBccHandler {
         button.append(span);
 
         button.addEventListener("click", () => {
+            if (!this.isExtensionAlive()) {
+                return;
+            }
             if (this.formsEnabled[formId].disabled === true) {
                 let img = button.firstChild as HTMLImageElement;
                 img.src = chrome.runtime.getURL("src/icons/orange-square-mail.png");
@@ -175,7 +208,10 @@ class GmailAutoBccHandler {
      the corresponding observer will be disconnected to prevent unnecessary processing.
      */
     createGlobalObserver() {
-        this.observer = setInterval(() => {
+        this.cleanupTimer = setInterval(() => {
+            if (!this.isExtensionAlive()) {
+                return;
+            }
             // Loop through each known form ID and filter out any forms that no longer exist on the page
             this.knownForms = this.knownForms.filter(formId => {
                 if (!document.getElementById(formId)) {
@@ -205,9 +241,9 @@ class GmailAutoBccHandler {
      * This code utilizes a Mutation Observer to scan the entire document for new email forms that may appear.
      */
     createEmailFormObserver = () => {
-        this.observer = new MutationObserver(this.examineInsertedElements);
+        this.formObserver = new MutationObserver(this.examineInsertedElements);
         // The production build runs this script at document_start, before <body> exists, so observe the root element.
-        this.observer.observe(document.documentElement, {
+        this.formObserver.observe(document.documentElement, {
             childList: true,
             attributes: false,
             subtree: true,
@@ -221,6 +257,9 @@ class GmailAutoBccHandler {
      * @param elementsInserted
      */
     examineInsertedElements = (elementsInserted: any[]) => {
+        if (!this.isExtensionAlive()) {
+            return;
+        }
         elementsInserted.forEach(mutation => {
             mutation.addedNodes.forEach((node: any) => {
                 if (!node || typeof node.querySelector !== "function") {
@@ -373,7 +412,7 @@ class GmailAutoBccHandler {
     updateCcAndBccRecipients = (recipient: string, formElement: HTMLElement | null) => {
         // Autofilling moves focus into the CC/BCC inputs, which fires the "To" input's blur handler and calls back in
         // here. The rules for this sender are already being applied, so ignore those nested calls.
-        if (!formElement || this.autofilling || !recipient.trim()) {
+        if (!formElement || this.autofilling || !recipient.trim() || !this.isExtensionAlive()) {
             return;
         }
 
@@ -444,7 +483,7 @@ class GmailAutoBccHandler {
             return;
         }
         if (!fieldsOpen) {
-            composeLog(formElement.id).warn(`The ${neededContexts.join(" and ")} field(s) didn't open after 2 seconds, filling in what we can.`);
+            composeLog(formElement.id).debug(`The ${neededContexts.join(" and ")} field(s) didn't open after 2 seconds, filling in what we can.`);
         }
 
         try {
@@ -576,7 +615,7 @@ class GmailAutoBccHandler {
                 formLog.info(`Added to ${label}: ${emailsToAdd.join(", ")}.`);
                 return;
             }
-            formLog.warn(`Gmail didn't turn ${missingEmails.join(", ")} into ${label} recipients, added them as plain text instead. Gmail still sends to them.`);
+            formLog.debug(`Gmail didn't turn ${missingEmails.join(", ")} into ${label} recipients, added them as plain text instead. Gmail still sends to them.`);
             let rawEmails = inputField.value.split(",").map(email => email.trim()).filter(email => email);
             inputField.value = this.mergeArraysWithNoDuplicates(rawEmails, missingEmails).join(",");
         }, 300);

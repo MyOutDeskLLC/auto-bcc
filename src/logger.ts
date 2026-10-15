@@ -14,7 +14,13 @@ export const setDebugLogging = (enabled: boolean) => {
 };
 
 // Debug messages use console.log because Chrome hides console.debug unless the console's "Verbose" level is on.
+// Warnings and errors also appear on the extension's Errors page in chrome://extensions, which prints styling
+// directives as raw text, so those are written unstyled.
 const write = (method: "log" | "info" | "warn" | "error", message: string, details: unknown[]) => {
+    if (method === "warn" || method === "error") {
+        console[method](`[AutoBCC] ${message}`, ...details);
+        return;
+    }
     console[method](`${TAG}%c ${message}`, TAG_STYLE, "", ...details);
 };
 
