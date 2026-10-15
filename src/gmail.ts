@@ -4,6 +4,8 @@ const SELECTOR_FOR_BCC_SPAN = ".aB.gQ.pB";
 const SELECTOR_FOR_CC_SPAN = ".aB.gQ.pE";
 const EMAIL_REGEX = /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)/;
 import "./icons/gray-scale-orange-square-mail.png"
+import {findRuleForRecipient, normalizeRules} from "./rules";
+import type {Rule} from "./rules";
 
 const DEFAULT_OPTIONS = {
     offByDefault: false,
@@ -18,7 +20,7 @@ class GmailAutoBccHandler {
     public formsEnabled: Record<string, any>;
     public observerMap: Record<string, any>;
     public observer: any;
-    public rules: Record<string, any>;
+    public rules: Record<string, Rule>;
     public options: Record<string, any>;
     public autofilling: boolean;
 
@@ -108,11 +110,7 @@ class GmailAutoBccHandler {
 
     getRulesFromStorage = () => {
         chrome.storage.local.get("rules", (data: Record<string, any>) => {
-            if (!data.rules) {
-                this.rules = {};
-                return;
-            }
-            this.rules = data.rules;
+            this.rules = normalizeRules(data.rules);
         });
     };
 
@@ -239,7 +237,8 @@ class GmailAutoBccHandler {
      */
     createEmailFormObserver = () => {
         this.observer = new MutationObserver(this.examineInsertedElements);
-        this.observer.observe(document.body, {
+        // The production build runs this script at document_start, before <body> exists, so observe the root element.
+        this.observer.observe(document.documentElement, {
             childList: true,
             attributes: false,
             subtree: true,
@@ -420,58 +419,51 @@ class GmailAutoBccHandler {
      * @param formElement
      */
     updateCcAndBccRecipients = (recipient: string, formElement: HTMLElement | null) => {
-        if (!formElement) {
-            return;
-        }
-
         // Autofilling moves focus into the CC/BCC inputs, which fires the "To" input's blur handler and calls back in
         // here. The rules for this sender are already being applied, so ignore those nested calls.
-        if (this.autofilling) {
+        if (!formElement || this.autofilling) {
             return;
         }
 
-        // Store the currently focused element, so it can be refocused later
-        let currentFocus = document.querySelector<HTMLElement>(":focus");
-
-        this.debug(this.formsEnabled);
-        if (!this.formsEnabled[formElement.id]) {
+        const formState = this.formsEnabled[formElement.id];
+        if (!formState) {
             this.debug("Form not found. Trying again in 250ms");
-            setTimeout(() => {
-                this.updateCcAndBccRecipients(recipient, formElement);
-            }, 250);
+            setTimeout(() => this.updateCcAndBccRecipients(recipient, formElement), 250);
             return;
         }
-
-        // Check if email rules are disabled for this form
-        if (this.formsEnabled[formElement.id] && this.formsEnabled[formElement.id].disabled === true) {
+        if (formState.disabled === true) {
             this.debug('email rules disabled for form. returning early');
             return;
         }
 
-        // Open the CC and BCC fields
+        // Store the currently focused element, so it can be refocused after autofilling
+        const currentFocus = document.querySelector<HTMLElement>(":focus");
+        this.openCcAndBccFields(formElement);
+
+        const rule = this.findRuleForRecipient(recipient);
+        if (!rule) {
+            return;
+        }
+
+        this.autofilling = true;
+        this.applyRuleWhenFieldsOpen(formElement, rule, currentFocus);
+    };
+
+    openCcAndBccFields = (formElement: HTMLElement) => {
         formElement.querySelector<HTMLElement>(SELECTOR_FOR_CC_SPAN)?.click();
         formElement.querySelector<HTMLElement>(SELECTOR_FOR_BCC_SPAN)?.click();
+    };
 
-        // Check if there are any email rules defined
-        if (Object.keys(this.rules).length < 1) {
-            this.debug("no email rules defined.");
-            return;
-        }
-
-        // Determine the current sender and target domain
-        let currentSender = this.discoverCurrentSender();
-        let targetDomain = recipient.split("@")[1];
-
-        // Check if there are any email rules available for this sender and domain
-        if (!currentSender || !this.rules[currentSender] || !targetDomain || this.rules[currentSender].excludedDomains.includes(targetDomain)) {
-            this.debug("no rules available for email sender.");
-            return;
-        }
-
-        // Apply the email rules to the BCC and CC fields
-        this.debug("current sender: " + currentSender);
-        this.autofilling = true;
-        this.applyRuleWhenFieldsOpen(formElement, this.rules[currentSender], currentFocus);
+    /**
+     * Finds the rule to apply for the current sender when emailing `recipient`, or null when none applies.
+     *
+     * @param recipient
+     */
+    findRuleForRecipient = (recipient: string) => {
+        const currentSender = this.discoverCurrentSender();
+        const rule = findRuleForRecipient(this.rules, currentSender, recipient);
+        this.debug(rule ? `current sender: ${currentSender}` : "no rules available for email sender.");
+        return rule;
     };
 
     /**
@@ -533,6 +525,11 @@ class GmailAutoBccHandler {
      */
     typeIntoInput = (input: HTMLInputElement, text: string) => {
         input.focus();
+        // In replies Gmail can keep the CC/BCC inputs collapsed, so focus stays in the message body and insertText
+        // would type the address there. Only insert when the input really has focus.
+        if (document.activeElement !== input) {
+            return false;
+        }
         return document.execCommand("insertText", false, text);
     };
 
