@@ -4,6 +4,7 @@ import {
     findRuleForRecipient,
     findRuleForSender,
     isValidEmail,
+    matchRuleForRecipient,
     normalizeRules,
     validateRecipient,
     validateSender,
@@ -168,5 +169,20 @@ describe("applyDraft", () => {
         applyDraft(rules, draft({senders: ["b@x.com"], bcc: ["new@z.com"]}), "a@x.com");
 
         expect(rules).toEqual({"a@x.com": rule({bccEmails: ["crm@z.com"]})});
+    });
+});
+
+describe("matchRuleForRecipient", () => {
+    const rules = {"*@myoutdesk.com": rule({excludedDomains: ["myoutdesk.com"]}), "paused@x.com": rule({disabled: true})};
+
+    it("explains why no rule applies", () => {
+        expect(matchRuleForRecipient(rules, null, "a@b.com").reason).toBe("couldn't find the sender's address");
+        expect(matchRuleForRecipient(rules, "lance@myoutdesk.com", "nobody").reason).toBe(`"nobody" isn't an email address`);
+        expect(matchRuleForRecipient(rules, "paused@x.com", "a@b.com").reason).toBe("no active rule for sender paused@x.com");
+        expect(matchRuleForRecipient(rules, "lance@myoutdesk.com", "a@myoutdesk.com").reason).toBe("myoutdesk.com is excluded by the rule for lance@myoutdesk.com");
+    });
+
+    it("returns the rule with no reason when it applies", () => {
+        expect(matchRuleForRecipient(rules, "lance@myoutdesk.com", "a@b.com")).toEqual({rule: rules["*@myoutdesk.com"], reason: ""});
     });
 });

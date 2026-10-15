@@ -85,6 +85,31 @@ export const findRuleForSender = (rules: Record<string, Rule>, sender: string) =
 };
 
 /**
+ * Finds the rule to apply when `sender` emails `recipient`. When none applies, `reason` says why.
+ *
+ * @param rules
+ * @param sender
+ * @param recipient
+ */
+export const matchRuleForRecipient = (rules: Record<string, Rule>, sender: string | null, recipient: string): {rule: Rule | null, reason: string} => {
+    const targetDomain = recipient.split("@")[1];
+    if (!sender) {
+        return {rule: null, reason: "couldn't find the sender's address"};
+    }
+    if (!targetDomain) {
+        return {rule: null, reason: `"${recipient}" isn't an email address`};
+    }
+    const rule = findRuleForSender(rules, sender);
+    if (!rule) {
+        return {rule: null, reason: `no active rule for sender ${sender}`};
+    }
+    if (rule.excludedDomains.includes(targetDomain)) {
+        return {rule: null, reason: `${targetDomain} is excluded by the rule for ${sender}`};
+    }
+    return {rule, reason: ""};
+};
+
+/**
  * Finds the rule to apply when `sender` emails `recipient`, or null when no rule matches or the recipient's domain is
  * excluded by the rule.
  *
@@ -93,12 +118,7 @@ export const findRuleForSender = (rules: Record<string, Rule>, sender: string) =
  * @param recipient
  */
 export const findRuleForRecipient = (rules: Record<string, Rule>, sender: string | null, recipient: string) => {
-    const targetDomain = recipient.split("@")[1];
-    const rule = sender ? findRuleForSender(rules, sender) : null;
-    if (!rule || !targetDomain || rule.excludedDomains.includes(targetDomain)) {
-        return null;
-    }
-    return rule;
+    return matchRuleForRecipient(rules, sender, recipient).rule;
 };
 
 /**

@@ -1,19 +1,17 @@
-const SELECTOR_PRIMARY_COMPOSER_FORM = "form.bAs";
-const SELECTOR_FOR_FROM_SPAN = '.az2.az4.L3 span';
-const SELECTOR_FOR_BCC_SPAN = ".aB.gQ.pB";
-const SELECTOR_FOR_CC_SPAN = ".aB.gQ.pE";
 const EMAIL_REGEX = /([a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*)/;
 import "./icons/gray-scale-orange-square-mail.png"
-import {findRuleForRecipient, normalizeRules} from "./rules";
+import {matchRuleForRecipient, normalizeRules} from "./rules";
+import {composeLog, log, setDebugLogging} from "./logger";
+import {COMPOSE_MARKER_SELECTOR, findAddRecipientLink, findComposeForms, findSender} from "./compose";
 import type {Rule} from "./rules";
 
 const DEFAULT_OPTIONS = {
     offByDefault: false,
-    hideInlineButton: false
+    hideInlineButton: false,
+    debugLogging: false
 }
 
 class GmailAutoBccHandler {
-    public debugMode: boolean;
     public ccEmails: string;
     public bccEmails: string;
     public knownForms: string[];
@@ -25,7 +23,6 @@ class GmailAutoBccHandler {
     public autofilling: boolean;
 
     constructor() {
-        this.debugMode = true;
         this.ccEmails = "";
         this.bccEmails = "";
         this.knownForms = [];
@@ -36,17 +33,17 @@ class GmailAutoBccHandler {
         this.options = {};
         this.autofilling = false;
         // Get initial rules and hookup observers
-        this.debug("Retrieving email rules from local storage.");
         this.getRulesFromStorage();
-        this.debug("Retrieving options from storage.");
         this.getOptionsFromStorage();
-        this.debug("Creating an email form observer.");
         this.createEmailFormObserver();
-        this.debug("Creating an observer for garbage collection.");
         this.createGlobalObserver();
-        this.debug("Adding a listener for changes to the rules.");
-        chrome.storage.onChanged.addListener(() => {
-            this.getRulesFromStorage();
+        chrome.storage.onChanged.addListener((changes) => {
+            if (changes.rules) {
+                this.getRulesFromStorage();
+            }
+            if (changes.options) {
+                this.getOptionsFromStorage();
+            }
         });
     }
 
@@ -60,67 +57,40 @@ class GmailAutoBccHandler {
             // with the same topic, displaying any email other than the last one could result in an error.
             return matches[matches.length - 1];
         }
-        this.debug(`Failed to discover logged-in user based on current title ${document.title}`);
+        log.warn(`Couldn't find the signed-in address in the page title "${document.title}".`);
         // If we cannot find it, then im not sure?
         return null;
     };
 
     /**
-     * This function will discover the current "from" address in the email form
-     * if it exists.  If it does not exist, then it will return the logged-in user.
-     */
-    discoverCurrentSender = () => {
-        // Find the span element containing the email address using the defined
-        // selector.  This span element is only present when the user has
-        // multiple "send as" addresses configured.
-        const fromField = document.querySelector(SELECTOR_FOR_FROM_SPAN);
-
-        if (fromField && fromField.textContent) {
-            // Extracting the email address using regex
-            const emailMatch = fromField.textContent.match(EMAIL_REGEX);
-            if (emailMatch) {
-                return emailMatch[0]; // Return the extracted email address
-            } else {
-                this.debug(`Failed to extract sender email from: ${fromField.textContent}`);
-            }
-        }
-
-        this.debug(`Failed to discover current sender, returning logged-in user`);
-        return this.discoverLoggedInUser();
-    };
-
-    /**
-     * This is just a helper function to print debug statements into the console
+     * This function will discover the current "from" address in the email form if it exists. If it does not exist,
+     * then it will return the logged-in user.
      *
-     * @param output
+     * @param formElement
      */
-    debug = (...output: any[]) => {
-        if (!this.debugMode) {
-            return;
+    discoverCurrentSender = (formElement: HTMLElement) => {
+        const sender = findSender(formElement);
+        if (sender) {
+            return sender;
         }
 
-        output.forEach(item => {
-            if (typeof item === "string") {
-                console.log(`%c${item}`, "background: #222; color: #7dd3fc; padding: 0.375rem;");
-            } else {
-                console.log(`%cObject: %o`, "background: #222; color: #7dd3fc", item);
-            }
-        });
+        const loggedInUser = this.discoverLoggedInUser();
+        log.debug(`No "from" address in the compose window, using the signed-in address ${loggedInUser}.`);
+        return loggedInUser;
     };
 
     getRulesFromStorage = () => {
         chrome.storage.local.get("rules", (data: Record<string, any>) => {
             this.rules = normalizeRules(data.rules);
+            log.debug(`Loaded ${Object.keys(this.rules).length} rule(s).`, this.rules);
         });
     };
 
     getOptionsFromStorage = () => {
         chrome.storage.local.get("options", (data: Record<string, any>) => {
-            if (!data.options) {
-                this.options = DEFAULT_OPTIONS;
-                return;
-            }
-            this.options = data.options;
+            this.options = {...DEFAULT_OPTIONS, ...data.options};
+            setDebugLogging(this.options.debugLogging === true);
+            log.debug("Loaded options.", this.options);
         });
     }
 
@@ -169,7 +139,7 @@ class GmailAutoBccHandler {
                     button.children[1].innerText = "AutoBCC Enabled";
                 }
                 this.formsEnabled[formId].disabled = false;
-                this.debug('setting to FALSE')
+                composeLog(formId).info("Turned on with the inline button.");
 
                 //Add recipients to the form when the button is clicked
                 let formElement: HTMLElement | null = document.getElementById(formId);
@@ -178,13 +148,12 @@ class GmailAutoBccHandler {
 
                 })
             } else {
-                this.debug(button.firstChild);
                 let img = button.firstChild as HTMLImageElement
                 img.src = chrome.runtime.getURL("src/icons/gray-scale-orange-square-mail.png");
                 //@ts-ignore
                 button.children[1].innerText = "AutoBCC Disabled";
                 this.formsEnabled[formId].disabled = true;
-                this.debug('setting to TRUE')
+                composeLog(formId).info("Turned off with the inline button.");
             }
         });
 
@@ -213,7 +182,7 @@ class GmailAutoBccHandler {
                     // If the form is missing, disconnect its observer (if it exists), delete its entry in the
                     // formsEnabled object, and return false to remove it from the knownForms array
                     if (this.observerMap[formId]) {
-                        this.debug(`Disconnecting missing form: ${formId}`);
+                        composeLog(formId).debug("Closed, stopped watching it.");
                         this.observerMap[formId].disconnect();
                         delete (this.formsEnabled[formId])
                     }
@@ -257,7 +226,7 @@ class GmailAutoBccHandler {
                 if (!node || typeof node.querySelector !== "function") {
                     return;
                 }
-                if (node.querySelector(SELECTOR_PRIMARY_COMPOSER_FORM)) {
+                if (node.matches?.(COMPOSE_MARKER_SELECTOR) || node.querySelector(COMPOSE_MARKER_SELECTOR)) {
                     this.connectToNewForms();
                 }
             });
@@ -271,14 +240,14 @@ class GmailAutoBccHandler {
      */
     connectToNewForms() {
         // Get all forms that match the primary composer selector
-        const allForms: NodeListOf<HTMLElement> = document.querySelectorAll(SELECTOR_PRIMARY_COMPOSER_FORM);
+        const allForms = findComposeForms(document);
         // Loop through each form and connect to new forms if they are not already known
         allForms.forEach((formElement: HTMLElement) => {
             if (this.knownForms.includes(formElement.id)) {
                 return;
             }
             this.knownForms.push(formElement.id);
-            this.debug(`Connecting to new form: ${formElement.id}`);
+            composeLog(formElement.id).info(`Opened. AutoBCC is ${this.options.offByDefault === true ? "off" : "on"} for it.`);
             // Add a timeout to wait for recipient inputs to load before observing changes
             setTimeout(() => {
                 this.checkExistingRecipients(formElement);
@@ -294,22 +263,15 @@ class GmailAutoBccHandler {
      * @param formElement
      */
     checkExistingRecipients(formElement: HTMLElement) {
-        // Initialize a variable to store the found element
-        let foundElement = null;
-        // Loop through each div element with class "afx" and look for a search field
-        formElement.querySelectorAll("div.afx").forEach(divElement => {
-            if (divElement.ariaLabel && divElement.ariaLabel.toLowerCase().startsWith(`search field`)) {
-                this.debug("Located search field, looking for nearby input");
-                // If a search field is found, set the found element to its input field
-                foundElement = divElement.querySelector("input");
-            }
-        });
+        let toRow = this.findRecipientRow(formElement, "to");
 
-        // If a found element exists, scan for existing recipients under it
-        if (foundElement) {
-            this.debug("Scanning for existing recipients under search field", foundElement);
-            this.scanForCardsUnderNode(foundElement).forEach(item => {
-                this.debug(`Found Card: ${item.dataset.hovercardId}`)
+        // If the "To" row exists, scan for existing recipients under it
+        if (toRow) {
+            const existing = this.scanForCardsUnderNode(toRow);
+            if (existing.length) {
+                composeLog(formElement.id).debug(`Already addressed to ${existing.map(card => card.dataset.hovercardId).join(", ")}.`);
+            }
+            existing.forEach(item => {
                 // Update the CC and BCC recipients for each recipient card found
                 this.updateCcAndBccRecipients(item.dataset.hovercardId, formElement);
             });
@@ -326,7 +288,6 @@ class GmailAutoBccHandler {
      * @returns {*[]}
      */
     scanForCardsUnderNode(node: any) {
-        this.debug("Scanning for cards under node")
         // Find the closest parent row element
         let parentRow = node.closest("tr");
         // Find all divs under the parent row with the role "option", which contain recipient data
@@ -341,45 +302,36 @@ class GmailAutoBccHandler {
     };
 
     locateProperRecipientInputField(formElement: HTMLElement) {
-        // Loop through each span element and look for the "To - Select Contacts" aria-label
-        formElement.querySelectorAll("span").forEach(spanElement => {
-            if (spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith("to - select contacts")) {
-                // If the proper span element is found, set the proper email input field
-                let properEmailInputField = spanElement?.parentElement?.parentElement?.parentElement?.querySelector("input");
-                this.debug("Email To Field Input: ", properEmailInputField);
+        let properEmailInputField = this.findRecipientInput(formElement, "to");
+        if (!properEmailInputField) {
+            composeLog(formElement.id).warn(`Couldn't find the "To" field.`);
+            return;
+        }
 
-                if (!properEmailInputField) {
-                    return;
-                }
-
-                // Add an event listener to the input field's blur event to update the CC and BCC recipients
-                properEmailInputField.addEventListener("blur", (e: FocusEvent) => {
-                    this.debug("Blur event fired.");
-                    this.scanForCardsUnderNode(formElement).forEach(card => {
-                        this.debug(`Found Card: ${card.dataset.hovercardId}`)
-                        this.updateCcAndBccRecipients(card.dataset.hovercardId, formElement);
-                    })
-                    //@ts-ignore
-                    e?.target?.value?.split(",").forEach((recipient: string) => {
-                        this.debug(`Found raw email: ${recipient}`)
-                        this.updateCcAndBccRecipients(recipient, formElement);
-                    });
-                });
-                // Add an event listener to the input field's keydown event to update the CC and BCC recipients when
-                // the Escape key is pressed
-                properEmailInputField.addEventListener("keydown", (e) => {
-                    if (e.code !== "Escape") {
-                        return;
-                    }
-                    setTimeout(() => {
-                        this.debug("Firing esc handler to check emails");
-                        //@ts-ignore
-                        e?.target?.value?.split(",").forEach((recipient: string) => {
-                            this.updateCcAndBccRecipients(recipient, formElement);
-                        });
-                    }, 350);
-                });
+        // Add an event listener to the input field's blur event to update the CC and BCC recipients
+        properEmailInputField.addEventListener("blur", (e: FocusEvent) => {
+            composeLog(formElement.id).debug(`Left the "To" field, checking its recipients.`);
+            this.scanForCardsUnderNode(formElement).forEach(card => {
+                this.updateCcAndBccRecipients(card.dataset.hovercardId, formElement);
+            })
+            //@ts-ignore
+            e?.target?.value?.split(",").forEach((recipient: string) => {
+                this.updateCcAndBccRecipients(recipient, formElement);
+            });
+        });
+        // Add an event listener to the input field's keydown event to update the CC and BCC recipients when
+        // the Escape key is pressed
+        properEmailInputField.addEventListener("keydown", (e) => {
+            if (e.code !== "Escape") {
+                return;
             }
+            setTimeout(() => {
+                composeLog(formElement.id).debug(`Pressed Escape in the "To" field, checking its recipients.`);
+                //@ts-ignore
+                e?.target?.value?.split(",").forEach((recipient: string) => {
+                    this.updateCcAndBccRecipients(recipient, formElement);
+                });
+            }, 350);
         });
     }
 
@@ -395,7 +347,7 @@ class GmailAutoBccHandler {
             for (const mutation of mutationList) {
                 for (const addedNode of mutation.addedNodes) {
                     if (addedNode.role === "option" && addedNode.dataset && addedNode.dataset.hovercardId) {
-                        this.debug("to recipient change found, updating cc and bcc recipients", addedNode.dataset);
+                        composeLog(formElement.id).debug(`Recipient added: ${addedNode.dataset.hovercardId}.`);
                         this.updateCcAndBccRecipients(addedNode.dataset.hovercardId, formElement);
                     }
                 }
@@ -421,18 +373,19 @@ class GmailAutoBccHandler {
     updateCcAndBccRecipients = (recipient: string, formElement: HTMLElement | null) => {
         // Autofilling moves focus into the CC/BCC inputs, which fires the "To" input's blur handler and calls back in
         // here. The rules for this sender are already being applied, so ignore those nested calls.
-        if (!formElement || this.autofilling) {
+        if (!formElement || this.autofilling || !recipient.trim()) {
             return;
         }
 
+        const formLog = composeLog(formElement.id);
         const formState = this.formsEnabled[formElement.id];
         if (!formState) {
-            this.debug("Form not found. Trying again in 250ms");
+            formLog.debug("Not set up yet, trying again in 250ms.");
             setTimeout(() => this.updateCcAndBccRecipients(recipient, formElement), 250);
             return;
         }
         if (formState.disabled === true) {
-            this.debug('email rules disabled for form. returning early');
+            formLog.debug(`Skipped ${recipient}: AutoBCC is turned off for this compose window.`);
             return;
         }
 
@@ -440,7 +393,7 @@ class GmailAutoBccHandler {
         const currentFocus = document.querySelector<HTMLElement>(":focus");
         this.openCcAndBccFields(formElement);
 
-        const rule = this.findRuleForRecipient(recipient);
+        const rule = this.findRuleForRecipient(recipient, formElement);
         if (!rule) {
             return;
         }
@@ -450,19 +403,24 @@ class GmailAutoBccHandler {
     };
 
     openCcAndBccFields = (formElement: HTMLElement) => {
-        formElement.querySelector<HTMLElement>(SELECTOR_FOR_CC_SPAN)?.click();
-        formElement.querySelector<HTMLElement>(SELECTOR_FOR_BCC_SPAN)?.click();
+        findAddRecipientLink(formElement, "cc")?.click();
+        findAddRecipientLink(formElement, "bcc")?.click();
     };
 
     /**
      * Finds the rule to apply for the current sender when emailing `recipient`, or null when none applies.
      *
      * @param recipient
+     * @param formElement
      */
-    findRuleForRecipient = (recipient: string) => {
-        const currentSender = this.discoverCurrentSender();
-        const rule = findRuleForRecipient(this.rules, currentSender, recipient);
-        this.debug(rule ? `current sender: ${currentSender}` : "no rules available for email sender.");
+    findRuleForRecipient = (recipient: string, formElement: HTMLElement) => {
+        const currentSender = this.discoverCurrentSender(formElement);
+        const {rule, reason} = matchRuleForRecipient(this.rules, currentSender, recipient);
+        if (rule) {
+            composeLog(formElement.id).info(`Applying the rule for ${currentSender} to ${recipient}.`, {cc: rule.ccEmails, bcc: rule.bccEmails});
+        } else {
+            composeLog(formElement.id).debug(`Skipped ${recipient}: ${reason}.`);
+        }
         return rule;
     };
 
@@ -486,12 +444,14 @@ class GmailAutoBccHandler {
             return;
         }
         if (!fieldsOpen) {
-            this.debug("CC/BCC fields never became visible, filling in what we can.");
+            composeLog(formElement.id).warn(`The ${neededContexts.join(" and ")} field(s) didn't open after 2 seconds, filling in what we can.`);
         }
 
         try {
             this.autofillField(formElement, rule.bccEmails, "bcc");
             this.autofillField(formElement, rule.ccEmails, "cc");
+        } catch (error) {
+            composeLog(formElement.id).error("Failed to fill in CC/BCC.", error);
         } finally {
             this.autofilling = false;
         }
@@ -554,8 +514,7 @@ class GmailAutoBccHandler {
     };
 
     /**
-     * We decided to use aria labels instead of classes to locate elements since they are more accessible and less
-     * likely to change frequently. We scan for the cards and emails using this as an anchor point.
+     * Adds the rule's addresses to the "cc" or "bcc" field, skipping any that are already there as chips or raw text.
      *
      * @param formElement
      * @param emailList
@@ -563,9 +522,10 @@ class GmailAutoBccHandler {
      */
     autofillField = (formElement: HTMLElement, emailList: string[], context: string) => {
         if (emailList.length < 1) {
-            this.debug("email list empty", context);
             return;
         }
+        const formLog = composeLog(formElement.id);
+        const label = context.toUpperCase();
         let validEmails = emailList.filter(email => {
             return EMAIL_REGEX.test(email);
         });
@@ -573,19 +533,16 @@ class GmailAutoBccHandler {
             return;
         }
 
-        let spanElement = this.findRecipientLabel(formElement, context);
+        let recipientRow = this.findRecipientRow(formElement, context);
         let properEmailInputField = this.findRecipientInput(formElement, context);
-        if (!spanElement || !properEmailInputField) {
+        if (!recipientRow || !properEmailInputField) {
+            formLog.warn(`Couldn't find the ${label} field.`);
             return;
         }
 
-        this.debug("found proper input field to use", properEmailInputField);
-        let existingEmails = properEmailInputField.value;
-
         let emailsInsideRegularInput = properEmailInputField.value.split(",").map(email => email.trim());
         let emailsCommittedAsCards: string[] = [];
-        this.scanForCardsUnderNode(spanElement).forEach(card => {
-            this.debug(`Found Card: ${card.dataset.hovercardId}`)
+        this.scanForCardsUnderNode(recipientRow).forEach(card => {
             emailsCommittedAsCards.push(card.dataset.hovercardId);
         });
 
@@ -593,9 +550,8 @@ class GmailAutoBccHandler {
             return !emailsCommittedAsCards.includes(email) && !emailsInsideRegularInput.includes(email);
         });
 
-        this.debug(emailsToAdd);
-
         if (emailsToAdd.length === 0) {
+            formLog.debug(`${label} already has ${validEmails.join(", ")}.`);
             return;
         }
 
@@ -614,33 +570,46 @@ class GmailAutoBccHandler {
         // If Gmail didn't turn the addresses into chips, fall back to leaving them as raw text in the input, which
         // Gmail still sends to.
         setTimeout(() => {
-            let emailsNowCards = this.scanForCardsUnderNode(spanElement).map(card => card.dataset.hovercardId);
+            let emailsNowCards = this.scanForCardsUnderNode(recipientRow).map(card => card.dataset.hovercardId);
             let missingEmails = emailsToAdd.filter(email => !emailsNowCards.includes(email) && !inputField.value.includes(email));
             if (missingEmails.length === 0) {
+                formLog.info(`Added to ${label}: ${emailsToAdd.join(", ")}.`);
                 return;
             }
-            this.debug(`Could not add ${context} recipients as chips, falling back to raw text`, missingEmails);
+            formLog.warn(`Gmail didn't turn ${missingEmails.join(", ")} into ${label} recipients, added them as plain text instead. Gmail still sends to them.`);
             let rawEmails = inputField.value.split(",").map(email => email.trim()).filter(email => email);
             inputField.value = this.mergeArraysWithNoDuplicates(rawEmails, missingEmails).join(",");
         }, 300);
-
-        this.debug(`updated ${context} recipients to`, emailList, existingEmails);
     };
 
     /**
-     * Finds the label span for the "cc" or "bcc" field, which is used as an anchor to locate the input and its cards.
+     * Finds the table row that holds the "to", "cc" or "bcc" field, its input and its recipient chips. Gmail names each
+     * recipient field with a name attribute that is the same in every display language, so that is the anchor. The
+     * English aria-labels are kept as a fallback in case Gmail drops the name attribute.
      *
      * @param formElement
      * @param context
      */
-    findRecipientLabel = (formElement: HTMLElement, context: string) => {
+    findRecipientRow = (formElement: HTMLElement, context: string) => {
+        let field = formElement.querySelector<HTMLElement>(`div[name="${context}"]`);
+        if (!field) {
+            field = this.findEnglishRecipientLabel(formElement, context);
+            if (field) {
+                log.warnOnce(`Found the ${context} field only by its English label. Gmail may have changed its compose window, and other languages won't work.`);
+            }
+        }
+        return field?.closest("tr") ?? null;
+    };
+
+    findEnglishRecipientLabel = (formElement: HTMLElement, context: string) => {
         return [...formElement.querySelectorAll("span")].find((spanElement: HTMLSpanElement) => {
             return spanElement.ariaLabel && spanElement.ariaLabel.toLowerCase().startsWith(`${context} -`);
         }) ?? null;
     };
 
     findRecipientInput = (formElement: HTMLElement, context: string) => {
-        return this.findRecipientLabel(formElement, context)?.parentElement?.parentElement?.querySelector("input") ?? null;
+        let row = this.findRecipientRow(formElement, context);
+        return row?.querySelector<HTMLInputElement>("input[role=combobox]") ?? row?.querySelector("input") ?? null;
     };
 }
 
