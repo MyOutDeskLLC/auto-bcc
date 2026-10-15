@@ -5,6 +5,7 @@
             <div class="options">
                 <label class="option">Off by default<Toggle v-model="options.offByDefault"/></label>
                 <label class="option">Hide inline button<Toggle v-model="options.hideInlineButton"/></label>
+                <label class="option" title="Shows what AutoBCC is doing in Gmail's developer console">Debug logs<Toggle v-model="options.debugLogging"/></label>
                 <span class="reload-note">Reload Gmail after changing options</span>
             </div>
         </header>
@@ -92,7 +93,8 @@
     const senders = computed(() => Object.keys(rules.value));
     const options = reactive({
         offByDefault: false,
-        hideInlineButton: false
+        hideInlineButton: false,
+        debugLogging: false
     });
 
     const helpSender = ref<string | null>(null);
