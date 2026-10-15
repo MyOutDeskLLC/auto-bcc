@@ -1,3 +1,43 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+    --brand: #EF6A02;
+    --brand-hover: #D95F00;
+    --brand-dark: #C45400;
+    --brand-ring: #FDE7D6;
+    --brand-soft: #FDF0E6;
+    --brand-wash: #FDF4EC;
+    --brand-line: #F7D9BF;
+    --ink: #1C1917;
+    --muted: #78716C;
+    --faint: #A8A29E;
+    --line: #E6E2DC;
+    --line-soft: #F0EDE8;
+    --line-strong: #D6D3CE;
+    --chip: #F3F1EE;
+    --surface-hover: #FCFBF9;
+    --danger: #B91C1C;
+    --danger-ring: #FEE2E2;
+}
+
+body {
+    margin: 0;
+    background: #FAF9F7;
+    font-family: 'Instrument Sans', Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+}
+
+a {
+    color: var(--brand);
+}
+
+a:hover {
+    color: var(--brand-dark);
+}
+
+button {
+    cursor: pointer;
+}

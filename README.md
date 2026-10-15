@@ -1,4 +1,4 @@
-<p align="center"><img src="./art/socialcard.png" alt="MyOutDesk, LLC"></p>
+<img src="./art/myoutdesk-logo.png" alt="MyOutDesk" width="420">
 
 This extension is maintained by [MyOutDesk](https://www.myoutdesk.com/)
 
