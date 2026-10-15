@@ -226,7 +226,7 @@ class GmailAutoBccHandler {
                 if (!node || typeof node.querySelector !== "function") {
                     return;
                 }
-                if (node.querySelector(COMPOSE_MARKER_SELECTOR)) {
+                if (node.matches?.(COMPOSE_MARKER_SELECTOR) || node.querySelector(COMPOSE_MARKER_SELECTOR)) {
                     this.connectToNewForms();
                 }
             });
